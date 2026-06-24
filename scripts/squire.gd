@@ -10,7 +10,7 @@ const SPEED := 235.0
 const RADIUS := 26.0
 const SCALE := 4.0
 const TINT := Color(0.7, 1.0, 0.7)     # humble servant green
-const MAX_HP := 100.0
+const MAX_HP := 75.0
 const MAX_STAMINA := 100.0
 
 const DASH_SPEED := 720.0

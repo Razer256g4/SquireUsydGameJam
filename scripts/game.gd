@@ -18,8 +18,10 @@ const WALL_MARGIN := 28.0
 const FIRST_INTERMISSION := 2.5
 const CLEAR_INTERMISSION := 3.0
 const FIRST_PICKUP_DELAY := 1.5
-const PICKUP_INTERVAL := Vector2(3.0, 5.0)   # random seconds between supply drops
-const MAX_PICKUPS := 6
+const PICKUP_INTERVAL := Vector2(0.4, 0.8)   # quick relocation after one is taken
+const MAX_PICKUPS := 1                        # Snake-like: one supply on the field at a time
+const PICKUP_HARD_CAP := 3                    # ceiling including occasional kill drops
+const KILL_DROP_MULT := 0.4                   # kill drops are now rare
 const BASE_MONSTERS := 9
 const MONSTERS_PER_ROOM := 4
 const BASE_SPAWN_GAP := 0.4
@@ -161,7 +163,8 @@ func add_suspicion(amount: float) -> void:
 
 func on_monster_killed(m: Monster) -> void:
 	score += m.score_value
-	if rng.randf() < m.drop_chance:
+	# Occasional, bounded kill drops; the steady supply is the single relocating pickup.
+	if get_tree().get_nodes_in_group("pickups").size() < PICKUP_HARD_CAP and rng.randf() < m.drop_chance * KILL_DROP_MULT:
 		_spawn_pickup(_weighted_pickup_kind(), clamp_to_arena(m.global_position, Pickup.RADIUS))
 
 # --- spawning helpers ---

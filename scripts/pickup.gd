@@ -5,10 +5,12 @@ class_name Pickup
 
 const RADIUS := 16.0       # pickup reach radius (shared with Game spawn-inset)
 const VIS := 1.4           # visual upscale so loot reads at the bigger character scale
+const LIFETIME := 6.0      # ignored supplies vanish so a fresh one appears elsewhere
 
 var kind := "potion"
 var radius := RADIUS
 var _bob := 0.0
+var _age := 0.0
 
 func _ready() -> void:
 	add_to_group("pickups")
@@ -17,6 +19,11 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_bob += delta
+	_age += delta
+	if _age >= LIFETIME:
+		queue_free()
+		return
+	modulate.a = clampf(LIFETIME - _age, 0.0, 1.5) / 1.5   # fade out in the last 1.5s
 	queue_redraw()
 
 func _draw() -> void:

@@ -11,28 +11,58 @@ const SCALE := 5.0
 const SPEED := 150.0
 const BOSS_SPEED := 175.0
 
-# --- cursed-item effects ---
-const CURSE_POISON := 7.0     # poison damage/sec added per cursed potion
-const CURSE_HP_PEN := 45.0    # max-HP lost per cursed potion
-const CURSE_SIP := 18.0       # immediate damage when she drinks a cursed potion
+# --- cursed-item effects (debuffs persist into the boss, but are now bounded) ---
+const CURSE_POISON := 4.0     # poison damage/sec added per cursed potion
+const CURSE_HP_PEN := 28.0    # max-HP lost per cursed potion
+const CURSE_SIP := 10.0       # immediate damage when she drinks a cursed potion
 const CURSE_REGEN := 0.25     # self-heal multiplier lost per cursed potion
 const CURSE_POWER := 0.14     # attack multiplier lost per cursed weapon
+const POISON_DPS_CAP := 14.0  # ceiling on total stacked poison/sec
+const HP_PENALTY_CAP := 160.0 # ceiling on total max-HP lost to cursed potions
 const GENUINE_HEAL := 70.0
 const GENUINE_POWER := 0.05
 
-# --- flashy abilities (phase 1), each on its own cooldown ---
+# --- telegraphed abilities (used in BOTH phases), each on its own cooldown ---
+# Every flashy move first shows a Telegraph for *_DELAY seconds, THEN strikes, so
+# the Squire (and the horde) can SEE it coming and walk/dash out of the danger zone.
+const ABILITY_GCD := 0.8     # global pause between casts so telegraphs don't spam
 const METEOR_CD := 5.0       # heavy AoE bomb dropped on the thickest part of the horde
 const METEOR_RADIUS := 160.0
 const METEOR_POWER := 3.2    # x base_damage
-const NOVA_CD := 7.0         # holy burst centred on her, clears anything hugging her
+const METEOR_DELAY := 0.7
+const NOVA_CD := 7.0         # burst at her feet, clears anything hugging her
 const NOVA_RADIUS := 140.0
 const NOVA_POWER := 1.7
-const SMITE_CD := 3.5        # chain lightning to the nearest few
+const NOVA_DELAY := 0.5
+const SMITE_CD := 3.5        # fast chain lightning to the nearest few
 const SMITE_TARGETS := 4
 const SMITE_POWER := 1.5
+const SMITE_DELAY := 0.18    # brief tell, then the bolt
+const NUKE_CD := 3.5         # boss: big bomb on the Squire's position
+const NUKE_RADIUS := 150.0
+const NUKE_POWER := 1.2
+const NUKE_DELAY := 0.6
+const SHOWER_CD := 9.0       # several staggered craters around the target
+const SHOWER_COUNT := 5
+const SHOWER_RADIUS := 90.0
+const SHOWER_SPREAD := 170.0
+const SHOWER_POWER := 1.6
+const SHOWER_DELAY := 0.7
+const SHOWER_STAGGER := 0.22
+const BEAM_CD := 8.0         # cross of two perpendicular beams through the target
+const BEAM_LEN := 520.0
+const BEAM_HALF_W := 34.0
+const BEAM_POWER := 2.0
+const BEAM_DELAY := 0.65
+const CHARGE_CD := 7.5       # telegraph a lane, then physically dash down it
+const CHARGE_HALF_W := 40.0
+const CHARGE_POWER := 2.2
+const CHARGE_DELAY := 0.6
+const CHARGE_SPEED := 1100.0
 const FIRE := Color(1.0, 0.55, 0.12)
 const HOLY := Color(1.0, 0.92, 0.45)
 const ARC := Color(0.6, 0.85, 1.0)
+const CHARGE_COL := Color(1.0, 0.7, 0.3)
 
 const THANKS := [
 	"Thanks, faithful servant!", "You always know best!",
@@ -68,6 +98,14 @@ var _nuke_cd := 0.0
 var _meteor_cd := 1.5
 var _nova_cd := 3.0
 var _smite_cd := 2.0
+var _shower_cd := 4.0
+var _beam_cd := 5.0
+var _charge_cd := 6.0
+var _gcd := 0.0               # global ability cooldown
+var _charging := 0.0         # >0 while a charge dash is in progress
+var _charge_dir := Vector2.ZERO
+var _charge_left := 0.0
+var _charge_dmg := 0.0
 var _dead := false
 var _overlay_y := 0.0
 var _game: Game
@@ -101,6 +139,10 @@ func _process(delta: float) -> void:
 	_meteor_cd = _decay(_meteor_cd, delta)
 	_nova_cd = _decay(_nova_cd, delta)
 	_smite_cd = _decay(_smite_cd, delta)
+	_shower_cd = _decay(_shower_cd, delta)
+	_beam_cd = _decay(_beam_cd, delta)
+	_charge_cd = _decay(_charge_cd, delta)
+	_gcd = _decay(_gcd, delta)
 
 	if poison_dps > 0.0:
 		hp -= poison_dps * delta
@@ -109,6 +151,13 @@ func _process(delta: float) -> void:
 			return
 
 	_spr.modulate = _flash_col if _flash > 0.0 else _base_modulate()
+
+	# A charge dash overrides normal movement while it runs.
+	if _charge_tick(delta):
+		_update_flip()
+		_play("attack")
+		queue_redraw()
+		return
 
 	var moved := _boss_step(delta) if hostile else _serving_step(delta)
 
@@ -137,12 +186,24 @@ func _serving_step(delta: float) -> bool:
 
 # Fire at most one flashy move per frame, biggest first.
 func _try_abilities(target: Monster) -> void:
-	if _meteor_cd <= 0.0 and _enemies_near(target.global_position, METEOR_RADIUS) >= 3:
-		_cast_meteor(target.global_position)
+	if _gcd > 0.0:
+		return
+	var tp := target.global_position
+	if _shower_cd <= 0.0 and _enemies_near(tp, SHOWER_SPREAD) >= 5:
+		_cast_shower(tp)
+	elif _beam_cd <= 0.0 and _enemies_near(tp, 200.0) >= 4:
+		_cast_beam(tp)
+	elif _charge_cd <= 0.0 and global_position.distance_to(tp) >= 220.0 and _enemies_near(tp, 120.0) >= 2:
+		_cast_charge(tp)
+	elif _meteor_cd <= 0.0 and _enemies_near(tp, METEOR_RADIUS) >= 3:
+		_cast_meteor(tp)
 	elif _nova_cd <= 0.0 and _enemies_near(global_position, NOVA_RADIUS) >= 2:
 		_cast_nova()
 	elif _smite_cd <= 0.0:
 		_cast_smite()
+	else:
+		return
+	_gcd = ABILITY_GCD
 
 func _attack_cleave() -> void:
 	_cd = base_attack_cd
@@ -155,20 +216,118 @@ func _attack_cleave() -> void:
 			m.take_damage(dmg)
 	Fx.slash(get_parent(), global_position + Vector2(0, -10), _facing, attack_range, Color(0.95, 0.97, 1.0))
 
-# --- the flashy moves ---
+# --- telegraph scheduling (show the danger zone now, strike after `delay`) ---
+func _telegraph_circle(center: Vector2, radius: float, delay: float, col: Color, dmg: float, hit_squire: bool) -> void:
+	var me := self
+	Telegraph.circle(get_parent(), center, radius, delay, col, func() -> void:
+		if is_instance_valid(me) and not me._dead:
+			me._strike_circle(center, radius, col, dmg, hit_squire))
+
+func _strike_circle(center: Vector2, radius: float, col: Color, dmg: float, hit_squire: bool) -> void:
+	_damage_enemies_in(center, radius, dmg)
+	if hit_squire:
+		var sq := _squire()
+		if sq and sq.global_position.distance_to(center) <= radius + Squire.RADIUS:
+			sq.take_damage(dmg)
+	Fx.explosion(get_parent(), center, col, radius)
+
+func _telegraph_line(from: Vector2, to: Vector2, half_w: float, delay: float, col: Color, dmg: float, hit_squire: bool) -> void:
+	var me := self
+	Telegraph.line(get_parent(), from, to, half_w, delay, col, func() -> void:
+		if is_instance_valid(me) and not me._dead:
+			me._strike_line(from, to, half_w, col, dmg, hit_squire))
+
+func _strike_line(from: Vector2, to: Vector2, half_w: float, col: Color, dmg: float, hit_squire: bool) -> void:
+	for n in get_tree().get_nodes_in_group("monsters"):
+		var m := n as Monster
+		if m.faction == "enemy" and _dist_to_segment(m.global_position, from, to) <= half_w + m.radius:
+			m.take_damage(dmg)
+	if hit_squire:
+		var sq := _squire()
+		if sq and _dist_to_segment(sq.global_position, from, to) <= half_w + Squire.RADIUS:
+			sq.take_damage(dmg)
+	Fx.bolt(get_parent(), from, to, col, 0.3)
+	Fx.sparks(get_parent(), to, col, 24, 160.0, 0.5)
+
+func _dist_to_segment(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab: Vector2 = b - a
+	var l2: float = ab.length_squared()
+	if l2 < 0.001:
+		return p.distance_to(a)
+	var t: float = clampf((p - a).dot(ab) / l2, 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+# --- the telegraphed moves (target = enemy cluster in serving, the Squire in boss) ---
 func _cast_meteor(center: Vector2) -> void:
 	_meteor_cd = METEOR_CD
 	_play("attack"); _anim_lock = 0.4
-	_flash = 0.3; _flash_col = FIRE
-	_damage_enemies_in(center, METEOR_RADIUS, base_damage * power_mult * METEOR_POWER)
-	Fx.explosion(get_parent(), center, FIRE, METEOR_RADIUS)
+	_flash = 0.2; _flash_col = FIRE
+	_telegraph_circle(center, METEOR_RADIUS, METEOR_DELAY, FIRE, base_damage * power_mult * METEOR_POWER, hostile)
 
 func _cast_nova() -> void:
 	_nova_cd = NOVA_CD
 	_play("attack"); _anim_lock = 0.35
-	_flash = 0.3; _flash_col = HOLY
-	_damage_enemies_in(global_position, NOVA_RADIUS, base_damage * power_mult * NOVA_POWER)
-	Fx.nova(get_parent(), global_position, NOVA_RADIUS, HOLY)
+	_flash = 0.2; _flash_col = HOLY
+	_telegraph_circle(global_position, NOVA_RADIUS, NOVA_DELAY, HOLY, base_damage * power_mult * NOVA_POWER, hostile)
+
+func _cast_shower(center: Vector2) -> void:
+	_shower_cd = SHOWER_CD
+	_play("attack"); _anim_lock = 0.4
+	_flash = 0.2; _flash_col = FIRE
+	var dmg := base_damage * power_mult * SHOWER_POWER
+	for i in SHOWER_COUNT:
+		var off := Vector2(randf_range(-SHOWER_SPREAD, SHOWER_SPREAD), randf_range(-SHOWER_SPREAD, SHOWER_SPREAD))
+		var spot := Game.clamp_to_arena(center + off, SHOWER_RADIUS)
+		_telegraph_circle(spot, SHOWER_RADIUS, SHOWER_DELAY + i * SHOWER_STAGGER, FIRE, dmg, hostile)
+
+func _cast_beam(center: Vector2) -> void:
+	_beam_cd = BEAM_CD
+	_play("attack"); _anim_lock = 0.35
+	_flash = 0.2; _flash_col = ARC
+	var dmg := base_damage * power_mult * BEAM_POWER
+	var h := BEAM_LEN * 0.5
+	_telegraph_line(center + Vector2(-h, 0), center + Vector2(h, 0), BEAM_HALF_W, BEAM_DELAY, ARC, dmg, hostile)
+	_telegraph_line(center + Vector2(0, -h), center + Vector2(0, h), BEAM_HALF_W, BEAM_DELAY, ARC, dmg, hostile)
+
+func _cast_charge(target_pos: Vector2) -> void:
+	_charge_cd = CHARGE_CD
+	_flash = 0.2; _flash_col = CHARGE_COL
+	var from := global_position
+	var to := Game.clamp_to_arena(target_pos, RADIUS)
+	var me := self
+	Telegraph.line(get_parent(), from, to, CHARGE_HALF_W, CHARGE_DELAY, CHARGE_COL, func() -> void:
+		if is_instance_valid(me) and not me._dead:
+			me._begin_charge(to))
+
+func _begin_charge(to: Vector2) -> void:
+	var d := to - global_position
+	_charge_left = d.length()
+	if _charge_left < 1.0:
+		return
+	_charge_dir = d / _charge_left
+	_charging = 1.0
+	_charge_dmg = base_damage * power_mult * CHARGE_POWER
+	_anim_lock = 0.3
+	_play("attack")
+
+# Returns true while the dash is in progress (so _process skips normal movement).
+func _charge_tick(delta: float) -> bool:
+	if _charging <= 0.0:
+		return false
+	var step: float = minf(CHARGE_SPEED * delta, _charge_left)
+	position += _charge_dir * step
+	position = Game.clamp_to_arena(position, RADIUS)
+	_charge_left -= step
+	_damage_enemies_in(global_position, CHARGE_HALF_W, _charge_dmg * delta * 4.0)
+	if hostile:
+		var sq := _squire()
+		if sq and sq.global_position.distance_to(global_position) <= CHARGE_HALF_W + Squire.RADIUS:
+			sq.take_damage(_charge_dmg)
+			_charging = 0.0          # one solid hit, then stop (not a multi-hit blender)
+	if _charge_left <= 0.5:
+		_charging = 0.0
+		Fx.sparks(get_parent(), global_position, CHARGE_COL, 24, 160.0, 0.5)
+	return true
 
 func _cast_smite() -> void:
 	var targets := _nearest_enemies(SMITE_TARGETS)
@@ -179,9 +338,12 @@ func _cast_smite() -> void:
 	var origin := global_position + Vector2(0, -40)
 	var dmg := base_damage * power_mult * SMITE_POWER
 	for m in targets:
-		m.take_damage(dmg)
-		Fx.bolt(get_parent(), origin, m.global_position, ARC)
-		Fx.sparks(get_parent(), m.global_position, ARC, 12, 130.0, 0.4)
+		var victim := m as Monster
+		Telegraph.circle(get_parent(), victim.global_position, 26.0, SMITE_DELAY, ARC, func() -> void:
+			if is_instance_valid(victim) and is_instance_valid(self):
+				victim.take_damage(dmg)
+				Fx.bolt(get_parent(), origin, victim.global_position, ARC)
+				Fx.sparks(get_parent(), victim.global_position, ARC, 12, 130.0, 0.4))
 
 # --- enemy queries shared by the abilities ---
 func _enemies_near(center: Vector2, r: float) -> int:
@@ -230,8 +392,7 @@ func _boss_step(delta: float) -> bool:
 	var to_t: Vector2 = sq.global_position - global_position
 	_facing = to_t.normalized()
 	var dist := to_t.length()
-	if _nuke_cd <= 0.0:
-		_nuke(sq)
+	_boss_abilities(sq, dist)
 	if dist > attack_range * 0.6:
 		position += _facing * BOSS_SPEED * delta
 		position = Game.clamp_to_arena(position, RADIUS)
@@ -243,14 +404,28 @@ func _boss_step(delta: float) -> bool:
 		_anim_lock = 0.4
 	return false
 
+# Boss picks a telegraphed attack so it's a dodge fight, not a face-tank.
+func _boss_abilities(sq: Squire, dist: float) -> void:
+	if _gcd > 0.0:
+		return
+	var sp := sq.global_position
+	if _charge_cd <= 0.0 and dist >= 200.0:
+		_cast_charge(sp)
+	elif _beam_cd <= 0.0:
+		_cast_beam(sp)
+	elif _shower_cd <= 0.0:
+		_cast_shower(sp)
+	elif _nuke_cd <= 0.0:
+		_nuke(sq)
+	else:
+		return
+	_gcd = ABILITY_GCD
+
 func _nuke(sq: Squire) -> void:
-	_nuke_cd = 3.5
-	_flash = 0.3
+	_nuke_cd = NUKE_CD
+	_flash = 0.25
 	_flash_col = Color(1.0, 0.5, 0.1)
-	var center := sq.global_position
-	if global_position.distance_to(center) <= 150.0:
-		sq.take_damage(_boss_damage() * 1.2)
-	Fx.explosion(get_parent(), center, Color(1.0, 0.4, 0.1), 150.0)
+	_telegraph_circle(sq.global_position, NUKE_RADIUS, NUKE_DELAY, Color(1.0, 0.4, 0.1), _boss_damage() * NUKE_POWER, true)
 
 # --- gifts from the squire ---
 func receive_genuine_potion() -> void:
@@ -266,8 +441,8 @@ func receive_genuine_weapon() -> void:
 	_say_thanks(false)
 
 func receive_cursed_potion() -> void:
-	poison_dps += CURSE_POISON
-	hp_penalty += CURSE_HP_PEN
+	poison_dps = minf(POISON_DPS_CAP, poison_dps + CURSE_POISON)
+	hp_penalty = minf(HP_PENALTY_CAP, hp_penalty + CURSE_HP_PEN)
 	regen_mult = maxf(0.2, regen_mult - CURSE_REGEN)
 	hp -= CURSE_SIP
 	if hp <= 0.0:
