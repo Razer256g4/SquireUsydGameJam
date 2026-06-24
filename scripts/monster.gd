@@ -72,6 +72,10 @@ func configure(wave: int) -> void:
 			max_hp = 70.0; speed = 92.0; damage = 13.0; attack_cd = 0.9
 			radius = 28.0; scale_f = 3.0; tint = Color.WHITE; prefers_squire = false
 			score_value = 26; drop_chance = 0.38
+		"werewolf":  # wave 2+ pack hunter: fast, medium HP, pounces hard
+			max_hp = 55.0; speed = 105.0; damage = 11.0; attack_cd = 1.0
+			radius = 28.0; scale_f = 0.35; tint = Color(0.75, 0.6, 0.9); prefers_squire = false
+			score_value = 22; drop_chance = 0.32
 		"minion":   # the "67" gag swarm: tiny, weak, fast, despawns on its own
 			max_hp = 6.0; speed = 150.0; damage = 3.0; attack_cd = 0.7
 			radius = 14.0; scale_f = 2.2; tint = Color(0.95, 0.8, 1.0); prefers_squire = false
@@ -93,7 +97,14 @@ func configure(wave: int) -> void:
 	# overlay row uses the same content-top (39) the Princess/Squire do.
 	var human := kind == "protestor"
 	_spr = AnimatedSprite2D.new()
-	_spr.sprite_frames = Anim.vampire() if kind == "vampire" else (Anim.soldier() if human else Anim.orc())
+	if kind == "vampire":
+		_spr.sprite_frames = Anim.vampire()
+	elif kind == "werewolf":
+		_spr.sprite_frames = Anim.werewolf()
+	elif human:
+		_spr.sprite_frames = Anim.soldier()
+	else:
+		_spr.sprite_frames = Anim.orc()
 	_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_spr.scale = Vector2(scale_f, scale_f)
 	_spr.offset = Vector2(0, -6)        # feet sit on the node origin
@@ -102,7 +113,12 @@ func configure(wave: int) -> void:
 	add_child(_spr)
 	_base_scale = Vector2(scale_f, scale_f)
 	_play("idle")
-	_overlay_y = overlay_y(10.0 if kind == "vampire" else (39.0 if human else 42.0), scale_f)
+	# Werewolf frames are 768 px tall (vs the standard 100px), so we calculate
+	# overlay_y manually: position the HP bar 40% down from the top of the frame.
+	if kind == "werewolf":
+		_overlay_y = -(scale_f * 768.0 * 0.40) - 8.0
+	else:
+		_overlay_y = overlay_y(10.0 if kind == "vampire" else (39.0 if human else 42.0), scale_f)
 
 func _process(delta: float) -> void:
 	if _game and _game.phase != "serving" and _game.phase != "boss":

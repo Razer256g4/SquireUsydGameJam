@@ -56,6 +56,21 @@ static func vampire() -> SpriteFrames:
 static func arrow_texture() -> Texture2D:
 	return load(RPG + "Arrow(Projectile)/Arrow01(100x100).png") as Texture2D
 
+static func werewolf() -> SpriteFrames:
+	if _cache.has("werewolf"):
+		return _cache["werewolf"]
+	var idle_p := "res://sprites/Firefly_pixel art sprite sheet, werewolf idle breathing animation, 6 frames horizontal strip, 676886.png"
+	var howl_p := "res://sprites/Firefly_Gemini Flash_pixel art sprite sheet, werewolf howl special attack, 7 frames horizontal strip,_head 676886.png"
+	var sf := _build([
+		{"name": "idle",   "path": idle_p, "frames": 6, "fps": 8.0,  "loop": true,  "fw": 234},
+		{"name": "walk",   "path": idle_p, "frames": 6, "fps": 10.0, "loop": true,  "fw": 234},
+		{"name": "attack", "path": howl_p, "frames": 7, "fps": 14.0, "loop": false, "fw": 390},
+		{"name": "hurt",   "path": idle_p, "frames": 2, "fps": 10.0, "loop": false, "fw": 234},
+		{"name": "death",  "path": idle_p, "frames": 6, "fps": 5.0,  "loop": false, "fw": 234},
+	])
+	_cache["werewolf"] = sf
+	return sf
+
 static func _build(defs: Array) -> SpriteFrames:
 	var sf := SpriteFrames.new()
 	if sf.has_animation("default"):
@@ -69,11 +84,12 @@ static func _build(defs: Array) -> SpriteFrames:
 		if tex == null:
 			push_warning("Anim: could not load " + str(d["path"]))
 			continue
+		var fw: int = d.get("fw", FW)
 		var fh := tex.get_height()
 		var n: int = d["frames"]
 		for i in n:
 			var at := AtlasTexture.new()
 			at.atlas = tex
-			at.region = Rect2(i * FW, 0, FW, fh)
+			at.region = Rect2(i * fw, 0, fw, fh)
 			sf.add_frame(name, at)
 	return sf
