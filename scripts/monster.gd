@@ -68,6 +68,10 @@ func configure(wave: int) -> void:
 			max_hp = 95.0; speed = 42.0; damage = 18.0; attack_cd = 1.3
 			radius = 46.0; scale_f = 5.8; tint = Color(1.0, 0.6, 0.55); prefers_squire = false
 			score_value = 30; drop_chance = 0.45
+		"vampire":   # gothic elite (full-colour sheet): tanky, fast, hits hard
+			max_hp = 70.0; speed = 92.0; damage = 13.0; attack_cd = 0.9
+			radius = 28.0; scale_f = 3.0; tint = Color.WHITE; prefers_squire = false
+			score_value = 26; drop_chance = 0.38
 		"minion":   # the "67" gag swarm: tiny, weak, fast, despawns on its own
 			max_hp = 6.0; speed = 150.0; damage = 3.0; attack_cd = 0.7
 			radius = 14.0; scale_f = 2.2; tint = Color(0.95, 0.8, 1.0); prefers_squire = false
@@ -89,7 +93,7 @@ func configure(wave: int) -> void:
 	# overlay row uses the same content-top (39) the Princess/Squire do.
 	var human := kind == "protestor"
 	_spr = AnimatedSprite2D.new()
-	_spr.sprite_frames = Anim.soldier() if human else Anim.orc()
+	_spr.sprite_frames = Anim.vampire() if kind == "vampire" else (Anim.soldier() if human else Anim.orc())
 	_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_spr.scale = Vector2(scale_f, scale_f)
 	_spr.offset = Vector2(0, -6)        # feet sit on the node origin
@@ -98,7 +102,7 @@ func configure(wave: int) -> void:
 	add_child(_spr)
 	_base_scale = Vector2(scale_f, scale_f)
 	_play("idle")
-	_overlay_y = overlay_y(39.0 if human else 42.0, scale_f)
+	_overlay_y = overlay_y(10.0 if kind == "vampire" else (39.0 if human else 42.0), scale_f)
 
 func _process(delta: float) -> void:
 	if _game and _game.phase != "serving" and _game.phase != "boss":

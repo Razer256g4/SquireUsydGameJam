@@ -276,9 +276,13 @@ func _weighted_monster_kind() -> String:
 	var r := rng.randf()
 	var brute_w: float = minf(0.30, 0.05 + wave * 0.02)
 	var scout_w := 0.35
-	if r < brute_w:
+	# Vampires are a mid/late-game elite — they start showing up from wave 3.
+	var vamp_w: float = 0.0 if wave < 3 else minf(0.20, 0.04 + (wave - 3) * 0.02)
+	if r < vamp_w:
+		return "vampire"
+	elif r < vamp_w + brute_w:
 		return "brute"
-	elif r < brute_w + scout_w:
+	elif r < vamp_w + brute_w + scout_w:
 		return "scout"
 	return "grunt"
 

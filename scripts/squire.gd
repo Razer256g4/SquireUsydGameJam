@@ -82,6 +82,8 @@ func _input(event: InputEvent) -> void:
 				_tip_off()
 			KEY_Q:
 				_scheme()
+			KEY_F:
+				_throw_weapon()
 
 func _process(delta: float) -> void:
 	if not _active():
@@ -170,6 +172,24 @@ func _scheme() -> void:
 	if _game.event_director.trigger_scheme():
 		_flash = 0.15
 		_flash_col = Color(1.0, 0.4, 0.8)
+
+## Hurl the carried WEAPON at the Princess (F): a ranged version of the bump
+## hand-off. Same genuine/cursed payoff and suspicion change, but you don't have to
+## close the distance. Potions still have to be delivered in person.
+func _throw_weapon() -> void:
+	if carry != "weapon" or not (_game and _game.phase == "serving"):
+		return
+	var pr := get_tree().get_first_node_in_group("princess") as Princess
+	if not pr:
+		return
+	var w := WeaponThrow.new()
+	w.position = global_position + Vector2(0, -10)
+	_game.add_child(w)
+	w.launch(_game, pr, cursed)
+	carry = ""
+	cursed = false
+	_flash = 0.12
+	_flash_col = Color(0.85, 0.9, 1.0)
 
 func _try_pickup() -> void:
 	if carry != "":
