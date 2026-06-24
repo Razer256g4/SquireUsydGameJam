@@ -11,14 +11,14 @@ const SCALE := 5.0
 const SPEED := 150.0
 const BOSS_SPEED := 175.0
 
-# --- cursed-item effects (debuffs persist into the boss, but are now bounded) ---
-const CURSE_POISON := 4.0     # poison damage/sec added per cursed potion
-const CURSE_HP_PEN := 28.0    # max-HP lost per cursed potion
-const CURSE_SIP := 10.0       # immediate damage when she drinks a cursed potion
-const CURSE_REGEN := 0.25     # self-heal multiplier lost per cursed potion
-const CURSE_POWER := 0.14     # attack multiplier lost per cursed weapon
-const POISON_DPS_CAP := 14.0  # ceiling on total stacked poison/sec
-const HP_PENALTY_CAP := 160.0 # ceiling on total max-HP lost to cursed potions
+# --- cursed-item effects (deliberately WEAK: weakening her is a slow, hard grind) ---
+const CURSE_POISON := 1.0     # poison/sec per cursed potion (was 4 — tick way down)
+const CURSE_HP_PEN := 14.0    # max-HP lost per cursed potion (was 28)
+const CURSE_SIP := 6.0        # immediate damage when she drinks a cursed potion (was 10)
+const CURSE_REGEN := 0.18     # self-heal multiplier lost per cursed potion (was 0.25)
+const CURSE_POWER := 0.03     # attack multiplier lost per cursed weapon (was 0.14 — way down)
+const POISON_DPS_CAP := 8.0   # ceiling on total stacked poison/sec (was 14)
+const HP_PENALTY_CAP := 120.0 # ceiling on total max-HP lost to cursed potions (was 160)
 const GENUINE_HEAL := 70.0
 const GENUINE_POWER := 0.05
 
@@ -110,6 +110,23 @@ var _dead := false
 var _overlay_y := 0.0
 var _game: Game
 
+# hit-pop (juice): a brief scale punch when struck. Kept per-class (not on Actor)
+# so it doesn't trip GDScript's cyclic base-member resolution. Uses inherited _spr.
+var _pop := 0.0
+var _base_scale := Vector2.ONE
+
+func _pop_hit() -> void:
+	_pop = 1.0
+
+func _tick_pop(delta: float) -> void:
+	if _spr == null:
+		return
+	if _pop > 0.0:
+		_pop = maxf(0.0, _pop - delta * 6.0)
+		_spr.scale = _base_scale * (1.0 + 0.18 * _pop)
+	elif _spr.scale != _base_scale:
+		_spr.scale = _base_scale
+
 func _ready() -> void:
 	add_to_group("princess")
 	z_index = 8
@@ -122,6 +139,7 @@ func _ready() -> void:
 	_spr.offset = Vector2(0, -6)        # feet sit on the node origin
 	_spr.z_index = -1
 	add_child(_spr)
+	_base_scale = Vector2(SCALE, SCALE)
 	_play("idle")
 	_overlay_y = overlay_y(39.0, SCALE)
 
@@ -151,6 +169,7 @@ func _process(delta: float) -> void:
 			return
 
 	_spr.modulate = _flash_col if _flash > 0.0 else _base_modulate()
+	_tick_pop(delta)
 
 	# A charge dash overrides normal movement while it runs.
 	if _charge_tick(delta):
@@ -230,6 +249,10 @@ func _strike_circle(center: Vector2, radius: float, col: Color, dmg: float, hit_
 		if sq and sq.global_position.distance_to(center) <= radius + Squire.RADIUS:
 			sq.take_damage(dmg)
 	Fx.explosion(get_parent(), center, col, radius)
+	if _game:                              # juice: every big AoE bomb thumps the screen
+		_game.shake(0.35)
+		_game.hitstop(0.05)
+	# SFX: AoE impact (deferred)
 
 func _telegraph_line(from: Vector2, to: Vector2, half_w: float, delay: float, col: Color, dmg: float, hit_squire: bool) -> void:
 	var me := self
@@ -468,6 +491,7 @@ func take_damage(d: float) -> void:
 	hp -= d
 	_flash = 0.12
 	_flash_col = Color.RED
+	_pop_hit()
 	if hp <= 0.0:
 		_on_death()
 	elif not hostile:

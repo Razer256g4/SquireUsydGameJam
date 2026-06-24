@@ -30,6 +30,10 @@ var _announce := ""
 var _announce_t := 0.0
 var _say := ""
 var _say_t := 0.0
+var _sq := ""             # squire / narrator bark (snide villain voice)
+var _sq_t := 0.0
+var _big := ""            # giant centre-screen flash (e.g. the "67" gag)
+var _big_t := 0.0
 var _betray_t := 0.0
 var _over := false
 var _won := false
@@ -48,6 +52,8 @@ func _process(delta: float) -> void:
 	var dirty := false
 	if _announce_t > 0.0: _announce_t -= delta; dirty = true
 	if _say_t > 0.0: _say_t -= delta; dirty = true
+	if _sq_t > 0.0: _sq_t -= delta; dirty = true
+	if _big_t > 0.0: _big_t -= delta; dirty = true
 	if _betray_t > 0.0: _betray_t -= delta; dirty = true
 	if dirty and _canvas:
 		_canvas.queue_redraw()
@@ -59,6 +65,14 @@ func announce(text: String) -> void:
 func princess_say(text: String) -> void:
 	_say = text
 	_say_t = 2.5
+
+func squire_say(text: String) -> void:
+	_sq = text
+	_sq_t = 2.6
+
+func big_flash(text: String) -> void:
+	_big = text
+	_big_t = 1.6
 
 func betray() -> void:
 	_betray_t = 3.0
@@ -99,15 +113,28 @@ func _render(c: Control) -> void:
 	_render_carry(c, f)
 
 	# Controls hint (bottom-right)
-	c.draw_string(f, Vector2(W - 540, H - 16),
-		"WASD move · Space dash · Ctrl tamper item · bump Princess = give · E tip off · R restart",
-		HORIZONTAL_ALIGNMENT_LEFT, 530, 12, Color(1, 1, 1, 0.4))
+	c.draw_string(f, Vector2(W - 700, H - 16),
+		"WASD move · Space dash · Ctrl tamper · bump Princess = give · E tip off · Q scheme · Esc pause · R restart",
+		HORIZONTAL_ALIGNMENT_LEFT, 690, 12, Color(1, 1, 1, 0.4))
 
 	# Princess speech (under the suspicion meter)
 	if _say_t > 0.0:
 		var sa: float = clampf(_say_t, 0.0, 1.0)
 		c.draw_string(f, Vector2(0, 92), "\"%s\"" % _say, HORIZONTAL_ALIGNMENT_CENTER, W, 22,
 			Color(1.0, 0.85, 0.9, sa))
+
+	# Squire / narrator bark (your snide villain voice), just below her line
+	if _sq_t > 0.0:
+		var qa: float = clampf(_sq_t, 0.0, 1.0)
+		c.draw_string(f, Vector2(0, 120), "— %s" % _sq, HORIZONTAL_ALIGNMENT_CENTER, W, 20,
+			Color(0.6, 1.0, 0.65, qa))
+
+	# Giant centre-screen flash (the "67" gag, etc.)
+	if _big_t > 0.0 and not _over:
+		var ba: float = clampf(_big_t / 1.6, 0.0, 1.0)
+		var bs: int = int(90 + (1.0 - ba) * 40.0)            # punches outward as it fades
+		c.draw_string(f, Vector2(0, H * 0.5 - 40.0), _big, HORIZONTAL_ALIGNMENT_CENTER, W, bs,
+			Color(1.0, 0.85, 0.25, ba))
 
 	# Wave / level announcement
 	if _announce_t > 0.0 and _betray_t <= 0.0 and not _over:

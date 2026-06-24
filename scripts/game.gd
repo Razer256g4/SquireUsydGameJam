@@ -18,8 +18,8 @@ static var arena := Vector2(1600, 900)
 const WALL_MARGIN := 28.0
 
 # --- pacing / difficulty tuning ---
-const FIRST_INTERMISSION := 2.5
-const CLEAR_INTERMISSION := 3.0
+const FIRST_INTERMISSION := 3.5
+const CLEAR_INTERMISSION := 6.0   # longer breather between waves (time for banter + setup)
 const FIRST_PICKUP_DELAY := 1.5
 const PICKUP_INTERVAL := Vector2(0.4, 0.8)   # quick relocation after one is taken
 const MAX_PICKUPS := 1                        # Snake-like: one supply on the field at a time
@@ -27,6 +27,8 @@ const PICKUP_HARD_CAP := 3                    # ceiling including occasional kil
 const KILL_DROP_MULT := 0.4                   # kill drops are now rare
 const BASE_MONSTERS := 9
 const MONSTERS_PER_ROOM := 4
+const WAVE_HP_GROWTH := 1.16     # monster HP scales EXPONENTIALLY per wave
+const WAVE_DMG_GROWTH := 1.09    # monster damage scales exponentially per wave
 const BASE_SPAWN_GAP := 0.4
 const MIN_SPAWN_GAP := 0.12
 const SPAWN_GAP_DECAY := 0.02
@@ -36,17 +38,18 @@ const BOSS_REINFORCE_INTERVAL := 3.5         # boss: fresh defectors keep arrivi
 const BOSS_REINFORCE_COUNT := 2
 const BOSS_ALLY_CAP := 14                     # ...up to this cap, so she can never fully wipe them
 
-# --- suspicion economy ---
+# --- suspicion economy (EXPONENTIAL: consecutive sabotage spikes fast; a single
+#     genuine gift RESETS it to zero) ---
 const SUSPICION_MAX := 100.0
-const SUS_CURSE := 16.0     # handing a cursed item
-const SUS_GENUINE := 10.0   # handing a genuine item (lowers suspicion)
-const SUS_TIP := 14.0       # tipping off the enemy
+const SUS_BASE := 8.0       # suspicion from the first sabotage in a streak
+const SUS_GROWTH := 1.6     # each consecutive sabotage adds this much MORE (exponential)
 
 # --- runtime state ---
 var phase := "serving"            # "serving" | "boss" | "won" | "lost"
 var score := 0
 var wave := 0
 var suspicion := 0.0
+var cursed_streak := 0            # consecutive sabotages since the last genuine gift
 var monsters_to_spawn := 0
 var wave_state := "intermission"  # "intermission" | "spawning" | "fighting" (serving only)
 var phase_timer := FIRST_INTERMISSION
@@ -55,9 +58,17 @@ var pickup_timer := FIRST_PICKUP_DELAY
 var boss_reinforce_timer := BOSS_REINFORCE_INTERVAL
 var rng := RandomNumberGenerator.new()
 
+var infighting_timer := 0.0       # >0 while the horde brawls itself (infighting event)
+
 var princess: Princess
 var squire: Squire
 var hud: HUD
+var event_director: EventDirector
+
+# --- juice ---
+var _shake := 0.0                 # screen-shake trauma 0..1 (drives the camera offset)
+var _hitstop := false
+var _cam: Camera2D                # shakes the VIEW only, so node coordinates stay intact
 
 func _ready() -> void:
 	add_to_group("game")
@@ -76,6 +87,18 @@ func _ready() -> void:
 	add_child(hud)
 	hud.announce("Serve the Princess... faithfully.")
 
+	event_director = EventDirector.new()
+	add_child(event_director)
+
+	add_child(PauseMenu.new())
+
+	# Camera centred on the arena keeps the exact current framing (arena == viewport),
+	# and lets screen-shake jitter the view via its offset without moving any node.
+	_cam = Camera2D.new()
+	_cam.position = arena * 0.5
+	add_child(_cam)
+	_cam.make_current()
+
 	_build_scenery()
 	queue_redraw()
 
@@ -85,11 +108,17 @@ func _input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	# Keep the playable area matched to the (possibly resized) browser canvas.
+	# (compare against the live position-free size so screen-shake offset is ignored)
 	var vp := get_viewport_rect().size
 	if vp != arena:
 		arena = vp
+		if _cam:
+			_cam.position = arena * 0.5
 		_rebuild_scenery()
 		queue_redraw()
+
+	infighting_timer = maxf(0.0, infighting_timer - delta)
+	_update_shake(delta)
 
 	match phase:
 		"serving":
@@ -122,11 +151,14 @@ func _run_waves(delta: float) -> void:
 			if monsters_to_spawn <= 0:
 				wave_state = "fighting"
 		"fighting":
-			if get_tree().get_nodes_in_group("monsters").is_empty():
+			# Only the wave's real enemies gate completion — event spawns (neutral
+			# protestors, "67" minions) must NOT keep the wave open or it soft-locks.
+			if _enemies_remaining() == 0:
 				wave_state = "intermission"
 				phase_timer = CLEAR_INTERMISSION
 				princess.level_up()
 				hud.announce("The Princess grows stronger... (Lv.%d)" % princess.level)
+				_wave_banter()
 
 func _run_pickups(delta: float) -> void:
 	pickup_timer -= delta
@@ -141,6 +173,15 @@ func _start_wave() -> void:
 	spawn_timer = 0.0
 	wave_state = "spawning"
 	hud.announce("Wave %d" % wave)
+
+## A witty princess/squire exchange between waves — gives the betrayal story room
+## to breathe (paired by index in Lines, so the reply matches her line).
+func _wave_banter() -> void:
+	if not hud or Lines.INTERLUDE_PRINCESS.size() == 0:
+		return
+	var i := rng.randi() % Lines.INTERLUDE_PRINCESS.size()
+	hud.princess_say(Lines.INTERLUDE_PRINCESS[i])
+	hud.squire_say(Lines.INTERLUDE_SQUIRE[i])
 
 # --- phase 2: boss ---
 func _betray() -> void:
@@ -182,8 +223,16 @@ func lose() -> void:
 	phase = "lost"
 	hud.show_end(false, score, wave)
 
-func add_suspicion(amount: float) -> void:
-	suspicion = clampf(suspicion + amount, 0.0, SUSPICION_MAX)
+## A sabotage (cursed gift or tip-off) raises suspicion on an exponential curve:
+## the longer the streak since your last genuine gift, the bigger each spike.
+func sabotage_suspicion() -> void:
+	suspicion = clampf(suspicion + SUS_BASE * pow(SUS_GROWTH, cursed_streak), 0.0, SUSPICION_MAX)
+	cursed_streak += 1
+
+## A genuine gift fully allays her suspicion and resets the streak.
+func help_resets_suspicion() -> void:
+	suspicion = 0.0
+	cursed_streak = 0
 
 func on_monster_killed(m: Monster) -> void:
 	score += m.score_value
@@ -193,12 +242,29 @@ func on_monster_killed(m: Monster) -> void:
 
 # --- spawning helpers ---
 func _spawn_enemy() -> Monster:
+	return spawn_monster(_weighted_monster_kind(), _edge_spawn_point())
+
+## Spawn one monster of `kind` at `pos`, optionally on a non-enemy faction
+## ("neutral" protestors, "ally" defectors). Used by the wave loop AND the
+## EventDirector. configure() builds the sprite/stats first; faction tints after.
+func spawn_monster(kind: String, pos: Vector2, fac := "enemy") -> Monster:
 	var m := Monster.new()
-	m.kind = _weighted_monster_kind()
-	m.position = _edge_spawn_point()
+	m.kind = kind
+	m.position = pos
 	add_child(m)
 	m.configure(wave)
+	if fac != "enemy":
+		m.set_faction(fac)
 	return m
+
+## Real wave enemies still standing (excludes neutral protestors and gag minions).
+func _enemies_remaining() -> int:
+	var n := 0
+	for node in get_tree().get_nodes_in_group("monsters"):
+		var m := node as Monster
+		if m.faction == "enemy" and m.kind != "minion":
+			n += 1
+	return n
 
 func _spawn_pickup(kind: String, pos: Vector2) -> void:
 	var p := Pickup.new()
@@ -238,6 +304,36 @@ static func clamp_to_arena(pos: Vector2, r: float) -> Vector2:
 		clamp(pos.x, WALL_MARGIN + r, arena.x - WALL_MARGIN - r),
 		clamp(pos.y, WALL_MARGIN + r, arena.y - WALL_MARGIN - r))
 
+# --- juice: screen shake + hit-stop ---
+## Add trauma (0..1). The world (this root Node2D) jitters; the HUD CanvasLayer
+## is unaffected. Gated by the pause-menu toggle.
+func shake(amount: float) -> void:
+	if not Settings.screen_shake:
+		return
+	_shake = clampf(_shake + amount, 0.0, 1.0)
+
+func _update_shake(delta: float) -> void:
+	if _cam == null:
+		return
+	if _shake <= 0.0:
+		if _cam.offset != Vector2.ZERO:
+			_cam.offset = Vector2.ZERO
+		return
+	_shake = maxf(0.0, _shake - delta * 1.6)
+	var mag := _shake * _shake * 20.0       # trauma² feels punchier than linear
+	_cam.offset = Vector2(rng.randf_range(-mag, mag), rng.randf_range(-mag, mag))
+
+## Briefly slow time on a big impact, then snap back. The restore timer ignores
+## time_scale so the freeze lasts a real `secs`. Gated by the pause-menu toggle.
+func hitstop(secs := 0.06) -> void:
+	if not Settings.hit_stop or _hitstop:
+		return
+	_hitstop = true
+	Engine.time_scale = 0.05
+	await get_tree().create_timer(secs, true, false, true).timeout
+	Engine.time_scale = 1.0
+	_hitstop = false
+
 # --- scenery ---
 func _rebuild_scenery() -> void:
 	for s in get_tree().get_nodes_in_group("scenery"):
@@ -265,7 +361,8 @@ func _add_building(path: String, pos: Vector2, sc: float) -> void:
 	add_child(s)
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, arena), Color(0.10, 0.10, 0.14))
+	# Over-draw the backdrop by a margin so screen-shake never reveals a gap at the edge.
+	draw_rect(Rect2(Vector2(-48, -48), arena + Vector2(96, 96)), Color(0.10, 0.10, 0.14))
 	var inner := Rect2(Vector2(WALL_MARGIN, WALL_MARGIN),
 		arena - Vector2(WALL_MARGIN * 2.0, WALL_MARGIN * 2.0))
 	draw_rect(inner, Color(0.16, 0.16, 0.22))

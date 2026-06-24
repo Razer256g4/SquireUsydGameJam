@@ -11,6 +11,7 @@ const RADIUS := 26.0
 const SCALE := 4.0
 const TINT := Color(0.7, 1.0, 0.7)     # humble servant green
 const MAX_HP := 75.0
+const MAX_HITS := 4                     # die on the Nth hit from ANY source (each hit = one pip)
 const MAX_STAMINA := 100.0
 
 const DASH_SPEED := 720.0
@@ -35,6 +36,23 @@ var _flash_col := Color.RED
 var _overlay_y := 0.0
 var _game: Game
 
+# hit-pop (juice): a brief scale punch when struck. Kept per-class (not on Actor)
+# so it doesn't trip GDScript's cyclic base-member resolution. Uses inherited _spr.
+var _pop := 0.0
+var _base_scale := Vector2.ONE
+
+func _pop_hit() -> void:
+	_pop = 1.0
+
+func _tick_pop(delta: float) -> void:
+	if _spr == null:
+		return
+	if _pop > 0.0:
+		_pop = maxf(0.0, _pop - delta * 6.0)
+		_spr.scale = _base_scale * (1.0 + 0.18 * _pop)
+	elif _spr.scale != _base_scale:
+		_spr.scale = _base_scale
+
 func _ready() -> void:
 	add_to_group("squire")
 	z_index = 10
@@ -47,6 +65,7 @@ func _ready() -> void:
 	_spr.offset = Vector2(0, -6)        # feet sit on the node origin
 	_spr.z_index = -1
 	add_child(_spr)
+	_base_scale = Vector2(SCALE, SCALE)
 	_play("idle")
 	_overlay_y = overlay_y(39.0, SCALE)
 
@@ -61,6 +80,8 @@ func _input(event: InputEvent) -> void:
 				_toggle_curse()
 			KEY_E:
 				_tip_off()
+			KEY_Q:
+				_scheme()
 
 func _process(delta: float) -> void:
 	if not _active():
@@ -98,6 +119,7 @@ func _process(delta: float) -> void:
 	_spr.modulate = col
 	_update_flip()
 	_play("walk" if moving else "idle")
+	_tick_pop(delta)
 	queue_redraw()
 
 func _active() -> bool:
@@ -136,9 +158,18 @@ func _tip_off() -> void:
 	for n in get_tree().get_nodes_in_group("monsters"):
 		(n as Monster).enrage()
 	if _game and _game.phase == "serving":
-		_game.add_suspicion(Game.SUS_TIP)
+		_game.sabotage_suspicion()
 	_flash = 0.15
 	_flash_col = Color(1.0, 0.5, 0.2)
+
+## Stir up a random "scheme" event (plane / revolt / infighting). The EventDirector
+## handles the cooldown + suspicion cost; we just flash to acknowledge the input.
+func _scheme() -> void:
+	if not (_game and _game.phase == "serving" and _game.event_director):
+		return
+	if _game.event_director.trigger_scheme():
+		_flash = 0.15
+		_flash_col = Color(1.0, 0.4, 0.8)
 
 func _try_pickup() -> void:
 	if carry != "":
@@ -164,17 +195,24 @@ func _try_hand() -> void:
 	else:
 		if cursed: pr.receive_cursed_weapon()
 		else: pr.receive_genuine_weapon()
-	_game.add_suspicion(Game.SUS_CURSE if cursed else -Game.SUS_GENUINE)
+	if cursed:
+		_game.sabotage_suspicion()
+	else:
+		_game.help_resets_suspicion()
 	carry = ""
 	cursed = false
 
-func take_damage(d: float) -> void:
+func take_damage(_d: float) -> void:
+	# Every hit costs ONE pip regardless of the damage value, so the squire always
+	# survives exactly MAX_HITS - 1 hits from any source (monster, trap, angel laser,
+	# boss nuke…) before the next one kills. Dash / i-frames (_hurt_cd) still apply.
 	if _hurt_cd > 0.0:
 		return
-	hp -= d
+	hp -= MAX_HP / float(MAX_HITS)
 	_hurt_cd = 0.6
 	_flash = 0.2
 	_flash_col = Color.RED
+	_pop_hit()
 	if hp <= 0.0:
 		hp = 0.0
 		_play("death")
