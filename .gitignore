@@ -1,0 +1,15 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# Godot exports
+export_presets.cfg
+*.import.bak
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Redundant asset archive (the extracted folders are committed instead)
+*.zip
