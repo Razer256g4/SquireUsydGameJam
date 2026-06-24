@@ -1,13 +1,16 @@
 extends Actor
 class_name Monster
-## Evil orcs. Three flavors:
+## Orcs. In phase 1 they besiege the Princess (scouts also harass the Squire).
+## Tipping off the enemy (E) ENRAGES them. When the Princess discovers the betrayal
+## every monster DEFECTS (faction "ally") and turns its fury on her.
 ##   grunt - standard, chases the Princess
-##   scout - fast, fragile, likes to harass the Squire
+##   scout - fast, fragile, harasses the Squire
 ##   brute - big, very tanky, very painful; best loot
-## Visual: the Orc sprite sheet, recoloured/scaled per flavor in configure().
 
-# Stats below are grunt-ish placeholders only; configure() overwrites every one
-# of them (and creates the sprite) based on `kind` right after the monster spawns.
+const ALLY_TINT := Color(0.5, 0.8, 1.0)
+const ENRAGED_TINT := Color(1.0, 0.55, 0.2)
+
+# Placeholders only; configure() overwrites every stat (and makes the sprite).
 var kind := "grunt"
 var hp := 30.0
 var max_hp := 30.0
@@ -21,11 +24,14 @@ var prefers_squire := false
 var score_value := 10
 var drop_chance := 0.18
 
+var faction := "enemy"          # "enemy" | "ally"
+var enraged := false
+
 var _cd := 0.0
 var _flash := 0.0
 var _anim_lock := 0.0
 var _dead := false
-var _overlay_y := 0.0       # set in configure(), once the sprite exists
+var _overlay_y := 0.0
 var _game: Game
 
 func _ready() -> void:
@@ -37,17 +43,16 @@ func configure(wave: int) -> void:
 	match kind:
 		"scout":
 			max_hp = 18.0; speed = 135.0; damage = 6.0; attack_cd = 0.8
-			radius = 12.0; scale_f = 0.5; tint = Color(0.7, 0.95, 1.0); prefers_squire = true
+			radius = 24.0; scale_f = 3.4; tint = Color(0.7, 0.95, 1.0); prefers_squire = true
 			score_value = 12; drop_chance = 0.12
 		"brute":
 			max_hp = 95.0; speed = 42.0; damage = 18.0; attack_cd = 1.3
-			radius = 22.0; scale_f = 0.9; tint = Color(1.0, 0.6, 0.55); prefers_squire = false
+			radius = 46.0; scale_f = 5.8; tint = Color(1.0, 0.6, 0.55); prefers_squire = false
 			score_value = 30; drop_chance = 0.45
 		_: # grunt
 			max_hp = 32.0; speed = 58.0; damage = 9.0; attack_cd = 1.0
-			radius = 16.0; scale_f = 0.6; tint = Color.WHITE; prefers_squire = false
+			radius = 32.0; scale_f = 4.2; tint = Color.WHITE; prefers_squire = false
 			score_value = 10; drop_chance = 0.18
-	# Scale with room number.
 	max_hp *= 1.0 + wave * 0.12
 	damage *= 1.0 + wave * 0.06
 	hp = max_hp
@@ -56,15 +61,15 @@ func configure(wave: int) -> void:
 	_spr.sprite_frames = Anim.orc()
 	_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_spr.scale = Vector2(scale_f, scale_f)
-	_spr.offset = Vector2(0, -12)
+	_spr.offset = Vector2(0, -6)        # feet sit on the node origin
 	_spr.z_index = -1
 	_spr.modulate = tint
 	add_child(_spr)
 	_play("idle")
-	_overlay_y = overlay_y(scale_f)
+	_overlay_y = overlay_y(42.0, scale_f)
 
 func _process(delta: float) -> void:
-	if _game and _game.state != "playing":
+	if _game and _game.phase != "serving" and _game.phase != "boss":
 		return
 	if _dead:
 		return
@@ -73,7 +78,7 @@ func _process(delta: float) -> void:
 	_flash = _decay(_flash, delta)
 	_anim_lock = _decay(_anim_lock, delta)
 	if _spr:
-		_spr.modulate = Color.WHITE if _flash > 0.0 else tint
+		_spr.modulate = Color.WHITE if _flash > 0.0 else _base_tint()
 
 	var moved := false
 	var target := _choose_target()
@@ -98,22 +103,23 @@ func _process(delta: float) -> void:
 		_play("walk" if moved else "idle")
 	queue_redraw()
 
-func _choose_target() -> Node2D:
-	var princess := get_tree().get_first_node_in_group("princess") as Node2D
-	var squire := get_tree().get_first_node_in_group("squire") as Node2D
-	if prefers_squire and squire and is_instance_valid(squire):
+func _choose_target() -> Actor:
+	var princess := get_tree().get_first_node_in_group("princess") as Princess
+	var squire := get_tree().get_first_node_in_group("squire") as Squire
+	if faction == "ally":
+		return princess          # defectors only ever attack the Princess
+	# enemy: scouts harass the squire until enraged; everyone else mobs the Princess
+	if not enraged and prefers_squire and squire and is_instance_valid(squire) \
+			and _game and _game.phase == "serving":
 		return squire
-	if princess and is_instance_valid(princess):
-		return princess
-	return squire
+	return princess if princess else squire
 
-func _target_radius(t: Node2D) -> float:
+func _target_radius(t: Actor) -> float:
 	if t is Princess: return Princess.RADIUS
 	if t is Squire: return Squire.RADIUS
 	return 14.0
 
 func _separation() -> Vector2:
-	# Light push-apart so monsters don't stack into a single blob.
 	var push := Vector2.ZERO
 	for o in get_tree().get_nodes_in_group("monsters"):
 		if o == self:
@@ -123,6 +129,21 @@ func _separation() -> Vector2:
 		if d > 0.01 and d < radius + 8.0:
 			push += diff / d * (radius + 8.0 - d) * 6.0
 	return push
+
+## Tip-off / rally: become faster and hit harder.
+func enrage() -> void:
+	if enraged:
+		return
+	enraged = true
+	speed *= 1.4
+	damage *= 1.5
+
+## Switch sides at the betrayal: now fight FOR the squire, against the Princess.
+func defect() -> void:
+	faction = "ally"
+	tint = ALLY_TINT
+	if _spr:
+		_spr.modulate = ALLY_TINT
 
 func take_damage(d: float) -> void:
 	if _dead:
@@ -137,22 +158,26 @@ func take_damage(d: float) -> void:
 
 func _die() -> void:
 	_dead = true
-	remove_from_group("monsters")     # so spawner/Princess stop counting it as alive
+	remove_from_group("monsters")
 	if _game:
 		_game.on_monster_killed(self)
+		Fx.sparks(_game, global_position, _base_tint(), 14, 110.0, 0.5)
 	if _spr:
-		_spr.modulate = tint
+		_spr.modulate = _base_tint()
 		_play("death")
 	queue_redraw()
 	await get_tree().create_timer(0.45).timeout
-	if is_instance_valid(self):       # may have been freed by a scene reload (R)
+	if is_instance_valid(self):
 		queue_free()
+
+func _base_tint() -> Color:
+	return ENRAGED_TINT if enraged else tint
 
 func _draw() -> void:
 	if _dead:
 		return
 	if hp < max_hp:
-		var w := 40.0
+		var w := radius * 1.8
 		var top := Vector2(-w * 0.5, _overlay_y)
-		draw_rect(Rect2(top, Vector2(w, 4)), Color(0, 0, 0, 0.6))
-		draw_rect(Rect2(top, Vector2(w * clampf(hp / max_hp, 0.0, 1.0), 4)), Color(0.9, 0.3, 0.3))
+		draw_rect(Rect2(top, Vector2(w, 5)), Color(0, 0, 0, 0.6))
+		draw_rect(Rect2(top, Vector2(w * clampf(hp / max_hp, 0.0, 1.0), 5)), Color(0.9, 0.3, 0.3))

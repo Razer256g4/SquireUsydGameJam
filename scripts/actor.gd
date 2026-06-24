@@ -9,8 +9,7 @@ class_name Actor
 # The Tiny RPG sheets are 100x100 with the body roughly centred. The floating
 # overlay row (HP bar / crown / carried item) sits just above the sprite's
 # visible top, derived from its offset and scale by overlay_y().
-const SHEET_HALF := 50.0    # half of a 100px frame
-const OVERLAY_GAP := 4.0    # extra padding above the sprite's visible top
+const FRAME_CENTER := 50.0   # centre of a 100px sprite frame
 
 var _facing := Vector2.DOWN
 var _spr: AnimatedSprite2D
@@ -30,6 +29,13 @@ func _update_flip() -> void:
 	if _spr:
 		_spr.flip_h = _facing.x < 0.0
 
-## World-space Y of the floating overlay row for a sprite drawn at scale `sc`.
-func overlay_y(sc: float) -> float:
-	return (_spr.offset.y - SHEET_HALF) * sc - OVERLAY_GAP
+## World-space Y of the floating overlay row (HP bar / crown / carried item).
+## `content_top` is the top edge of the visible character inside the 100px frame
+## (the art only fills a small, padded region); mapped to world space and nudged up.
+func overlay_y(content_top: float, sc: float) -> float:
+	return (_spr.offset.y + (content_top - FRAME_CENTER)) * sc - 8.0
+
+## Virtual hook so any Actor can be damaged through an `Actor`-typed reference.
+## Princess / Squire / Monster each override this with their real behaviour.
+func take_damage(_amount: float) -> void:
+	pass

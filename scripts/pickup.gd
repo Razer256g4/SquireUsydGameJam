@@ -3,7 +3,8 @@ class_name Pickup
 ## Loot on the dungeon floor. "potion" or "weapon". The Squire grabs it by
 ## walking over it (when empty-handed).
 
-const RADIUS := 12.0       # pickup reach radius (shared with Game spawn-inset)
+const RADIUS := 16.0       # pickup reach radius (shared with Game spawn-inset)
+const VIS := 1.4           # visual upscale so loot reads at the bigger character scale
 
 var kind := "potion"
 var radius := RADIUS
@@ -19,6 +20,7 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2(VIS, VIS))
 	var y := sin(_bob * 3.0) * 3.0
 	var at := Vector2(0, y)
 	# Glow ring
