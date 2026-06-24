@@ -240,7 +240,7 @@ func _telegraph_line(from: Vector2, to: Vector2, half_w: float, delay: float, co
 func _strike_line(from: Vector2, to: Vector2, half_w: float, col: Color, dmg: float, hit_squire: bool) -> void:
 	for n in get_tree().get_nodes_in_group("monsters"):
 		var m := n as Monster
-		if m.faction == "enemy" and _dist_to_segment(m.global_position, from, to) <= half_w + m.radius:
+		if m.faction == _hostile_faction() and _dist_to_segment(m.global_position, from, to) <= half_w + m.radius:
 			m.take_damage(dmg)
 	if hit_squire:
 		var sq := _squire()
@@ -357,7 +357,7 @@ func _enemies_near(center: Vector2, r: float) -> int:
 func _damage_enemies_in(center: Vector2, r: float, dmg: float) -> void:
 	for n in get_tree().get_nodes_in_group("monsters"):
 		var m := n as Monster
-		if m.faction == "enemy" and center.distance_to(m.global_position) <= r + m.radius:
+		if m.faction == _hostile_faction() and center.distance_to(m.global_position) <= r + m.radius:
 			m.take_damage(dmg)
 
 func _nearest_enemies(k: int) -> Array:
@@ -399,6 +399,8 @@ func _boss_step(delta: float) -> bool:
 		return true
 	elif _cd <= 0.0:
 		sq.take_damage(_boss_damage())
+		_damage_enemies_in(global_position, attack_range, _boss_damage())   # swat the surrounding horde too
+		Fx.slash(get_parent(), global_position + Vector2(0, -10), _facing, attack_range, Color(1.0, 0.85, 0.85))
 		_cd = base_attack_cd
 		_play("attack")
 		_anim_lock = 0.4
@@ -507,6 +509,11 @@ func _eff_max_hp() -> float:
 
 func _boss_damage() -> float:
 	return base_damage * power_mult
+
+## The monster faction she's hostile to: the enemy horde while serving, the
+## defected allies once she's the boss. Lets her keep mowing down the hordes.
+func _hostile_faction() -> String:
+	return "ally" if hostile else "enemy"
 
 func _squire() -> Squire:
 	return get_tree().get_first_node_in_group("squire") as Squire

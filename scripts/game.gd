@@ -11,7 +11,10 @@ class_name Game
 ## feeding intel all game, defect and fight at your side. Her remaining strength is
 ## exactly whatever you left her — so every sabotage in phase 1 pays off here.
 
-const ARENA_SIZE := Vector2(1152, 648)
+## The playable area. DYNAMIC: set to the live viewport size at runtime (so the
+## arena fills the browser canvas, whatever size it is). 1600x900 is just the
+## initial/fallback. Everything (HUD, spawns, clamps, scenery, floor) derives from it.
+static var arena := Vector2(1600, 900)
 const WALL_MARGIN := 28.0
 
 # --- pacing / difficulty tuning ---
@@ -29,6 +32,9 @@ const MIN_SPAWN_GAP := 0.12
 const SPAWN_GAP_DECAY := 0.02
 const SPAWN_BURST := 3                       # monsters poured in per spawn tick (a horde)
 const BOSS_ALLY_BONUS := 4                   # extra defectors that storm in at the betrayal
+const BOSS_REINFORCE_INTERVAL := 3.5         # boss: fresh defectors keep arriving...
+const BOSS_REINFORCE_COUNT := 2
+const BOSS_ALLY_CAP := 14                     # ...up to this cap, so she can never fully wipe them
 
 # --- suspicion economy ---
 const SUSPICION_MAX := 100.0
@@ -46,6 +52,7 @@ var wave_state := "intermission"  # "intermission" | "spawning" | "fighting" (se
 var phase_timer := FIRST_INTERMISSION
 var spawn_timer := 0.0
 var pickup_timer := FIRST_PICKUP_DELAY
+var boss_reinforce_timer := BOSS_REINFORCE_INTERVAL
 var rng := RandomNumberGenerator.new()
 
 var princess: Princess
@@ -55,13 +62,14 @@ var hud: HUD
 func _ready() -> void:
 	add_to_group("game")
 	rng.randomize()
+	arena = get_viewport_rect().size       # fit the playable area to the actual canvas
 
 	princess = Princess.new()
-	princess.position = ARENA_SIZE * 0.5
+	princess.position = arena * 0.5
 	add_child(princess)
 
 	squire = Squire.new()
-	squire.position = ARENA_SIZE * 0.5 + Vector2(0, 110)
+	squire.position = arena * 0.5 + Vector2(0, 110)
 	add_child(squire)
 
 	hud = HUD.new()
@@ -76,6 +84,13 @@ func _input(event: InputEvent) -> void:
 		get_tree().reload_current_scene()
 
 func _process(delta: float) -> void:
+	# Keep the playable area matched to the (possibly resized) browser canvas.
+	var vp := get_viewport_rect().size
+	if vp != arena:
+		arena = vp
+		_rebuild_scenery()
+		queue_redraw()
+
 	match phase:
 		"serving":
 			_serving_process(delta)
@@ -140,10 +155,19 @@ func _betray() -> void:
 		m.defect()
 	hud.betray()
 
-func _boss_process(_delta: float) -> void:
-	# Princess and monsters run their own behaviour; we only watch for the result.
+func _boss_process(delta: float) -> void:
 	if not is_instance_valid(princess) or princess.hp <= 0.0:
 		win()
+		return
+	# Fresh defectors keep storming in, so the Princess can mow down the horde around
+	# her while chasing you without ever fully clearing your army (which would soft-lock).
+	boss_reinforce_timer -= delta
+	if boss_reinforce_timer <= 0.0:
+		boss_reinforce_timer = BOSS_REINFORCE_INTERVAL
+		if get_tree().get_nodes_in_group("monsters").size() < BOSS_ALLY_CAP:
+			for _i in BOSS_REINFORCE_COUNT:
+				var m := _spawn_enemy()
+				m.defect()
 
 # --- outcomes ---
 func win() -> void:
@@ -198,28 +222,33 @@ func _weighted_pickup_kind() -> String:
 func _edge_spawn_point() -> Vector2:
 	var inner := WALL_MARGIN + 16.0
 	match rng.randi_range(0, 3):
-		0: return Vector2(rng.randf_range(inner, ARENA_SIZE.x - inner), inner)
-		1: return Vector2(rng.randf_range(inner, ARENA_SIZE.x - inner), ARENA_SIZE.y - inner)
-		2: return Vector2(inner, rng.randf_range(inner, ARENA_SIZE.y - inner))
-		_: return Vector2(ARENA_SIZE.x - inner, rng.randf_range(inner, ARENA_SIZE.y - inner))
+		0: return Vector2(rng.randf_range(inner, arena.x - inner), inner)
+		1: return Vector2(rng.randf_range(inner, arena.x - inner), arena.y - inner)
+		2: return Vector2(inner, rng.randf_range(inner, arena.y - inner))
+		_: return Vector2(arena.x - inner, rng.randf_range(inner, arena.y - inner))
 
 func _random_inner_point() -> Vector2:
 	var pad := WALL_MARGIN + 60.0
 	return Vector2(
-		rng.randf_range(pad, ARENA_SIZE.x - pad),
-		rng.randf_range(pad, ARENA_SIZE.y - pad))
+		rng.randf_range(pad, arena.x - pad),
+		rng.randf_range(pad, arena.y - pad))
 
 static func clamp_to_arena(pos: Vector2, r: float) -> Vector2:
 	return Vector2(
-		clamp(pos.x, WALL_MARGIN + r, ARENA_SIZE.x - WALL_MARGIN - r),
-		clamp(pos.y, WALL_MARGIN + r, ARENA_SIZE.y - WALL_MARGIN - r))
+		clamp(pos.x, WALL_MARGIN + r, arena.x - WALL_MARGIN - r),
+		clamp(pos.y, WALL_MARGIN + r, arena.y - WALL_MARGIN - r))
 
 # --- scenery ---
+func _rebuild_scenery() -> void:
+	for s in get_tree().get_nodes_in_group("scenery"):
+		s.queue_free()
+	_build_scenery()
+
 func _build_scenery() -> void:
 	var t := "res://tiny  swords terrain/Buildings/"
-	_add_building(t + "Blue Buildings/Castle.png", Vector2(ARENA_SIZE.x * 0.5, WALL_MARGIN + 50.0), 0.8)
+	_add_building(t + "Blue Buildings/Castle.png", Vector2(arena.x * 0.5, WALL_MARGIN + 50.0), 0.8)
 	_add_building(t + "Blue Buildings/Tower.png", Vector2(WALL_MARGIN + 80.0, WALL_MARGIN + 40.0), 0.7)
-	_add_building(t + "Blue Buildings/Tower.png", Vector2(ARENA_SIZE.x - WALL_MARGIN - 80.0, WALL_MARGIN + 40.0), 0.7)
+	_add_building(t + "Blue Buildings/Tower.png", Vector2(arena.x - WALL_MARGIN - 80.0, WALL_MARGIN + 40.0), 0.7)
 
 func _add_building(path: String, pos: Vector2, sc: float) -> void:
 	var tex := load(path) as Texture2D
@@ -232,20 +261,21 @@ func _add_building(path: String, pos: Vector2, sc: float) -> void:
 	s.scale = Vector2(sc, sc)
 	s.z_index = 1
 	s.modulate = Color(0.65, 0.65, 0.8, 0.9)
+	s.add_to_group("scenery")
 	add_child(s)
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, ARENA_SIZE), Color(0.10, 0.10, 0.14))
+	draw_rect(Rect2(Vector2.ZERO, arena), Color(0.10, 0.10, 0.14))
 	var inner := Rect2(Vector2(WALL_MARGIN, WALL_MARGIN),
-		ARENA_SIZE - Vector2(WALL_MARGIN * 2.0, WALL_MARGIN * 2.0))
+		arena - Vector2(WALL_MARGIN * 2.0, WALL_MARGIN * 2.0))
 	draw_rect(inner, Color(0.16, 0.16, 0.22))
 	var step := 64.0
 	var x := WALL_MARGIN
-	while x < ARENA_SIZE.x - WALL_MARGIN:
-		draw_line(Vector2(x, WALL_MARGIN), Vector2(x, ARENA_SIZE.y - WALL_MARGIN), Color(1, 1, 1, 0.025), 1.0)
+	while x < arena.x - WALL_MARGIN:
+		draw_line(Vector2(x, WALL_MARGIN), Vector2(x, arena.y - WALL_MARGIN), Color(1, 1, 1, 0.025), 1.0)
 		x += step
 	var y := WALL_MARGIN
-	while y < ARENA_SIZE.y - WALL_MARGIN:
-		draw_line(Vector2(WALL_MARGIN, y), Vector2(ARENA_SIZE.x - WALL_MARGIN, y), Color(1, 1, 1, 0.025), 1.0)
+	while y < arena.y - WALL_MARGIN:
+		draw_line(Vector2(WALL_MARGIN, y), Vector2(arena.x - WALL_MARGIN, y), Color(1, 1, 1, 0.025), 1.0)
 		y += step
 	draw_rect(inner, Color(0.40, 0.34, 0.5), false, 5.0)

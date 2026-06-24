@@ -3,8 +3,8 @@ class_name HUD
 ## All on-screen UI, drawn procedurally. The SUSPICION meter is the centerpiece.
 
 # Play-field size — single-sourced from Game so the HUD always matches the arena.
-var W := Game.ARENA_SIZE.x
-var H := Game.ARENA_SIZE.y
+var W := Game.arena.x
+var H := Game.arena.y
 
 var _canvas    # _HudCanvas (untyped so its custom `hud` field is accessible)
 
@@ -72,6 +72,8 @@ func show_end(won: bool, final_score: int, final_wave: int) -> void:
 		_canvas.queue_redraw()
 
 func update_state(game: Game) -> void:
+	W = Game.arena.x        # track the live playable area
+	H = Game.arena.y
 	suspicion = game.suspicion
 	phase = game.phase
 	var pr := game.princess
