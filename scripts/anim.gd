@@ -56,6 +56,22 @@ static func vampire() -> SpriteFrames:
 static func arrow_texture() -> Texture2D:
 	return load(RPG + "Arrow(Projectile)/Arrow01(100x100).png") as Texture2D
 
+static func banshee() -> SpriteFrames:
+	if _cache.has("banshee"):
+		return _cache["banshee"]
+	var idle_p := "res://sprites/banshee/processed/Banshee-Idle.png"
+	var atk_p  := "res://sprites/banshee/processed/Banshee-Attack.png"
+	var die_p  := "res://sprites/banshee/processed/Banshee-Portrait.png"
+	var sf := _build([
+		{"name": "idle",   "path": idle_p, "frames": 3, "fps": 6.0,  "loop": true,  "fw": 724},
+		{"name": "walk",   "path": idle_p, "frames": 3, "fps": 8.0,  "loop": true,  "fw": 724},
+		{"name": "attack", "path": atk_p,  "frames": 5, "fps": 12.0, "loop": false, "fw": 434},
+		{"name": "hurt",   "path": idle_p, "frames": 1, "fps": 8.0,  "loop": false, "fw": 724},
+		{"name": "death",  "path": die_p,  "frames": 1, "fps": 4.0,  "loop": false, "fw": 1254},
+	])
+	_cache["banshee"] = sf
+	return sf
+
 static func werewolf() -> SpriteFrames:
 	if _cache.has("werewolf"):
 		return _cache["werewolf"]

@@ -274,19 +274,23 @@ func _spawn_pickup(kind: String, pos: Vector2) -> void:
 
 func _weighted_monster_kind() -> String:
 	var r := rng.randf()
-	var brute_w: float = minf(0.30, 0.05 + wave * 0.02)
-	var scout_w := 0.25
+	var brute_w: float = minf(0.25, 0.05 + wave * 0.02)
+	var scout_w := 0.22
 	# Werewolves are wave 2 pack hunters — gradually displace scouts as the dominant fast enemy.
-	var wolf_w: float = 0.0 if wave < 2 else minf(0.30, 0.06 + (wave - 2) * 0.03)
+	var wolf_w: float = 0.0 if wave < 2 else minf(0.28, 0.06 + (wave - 2) * 0.03)
+	# Banshees are wave 3 spectral elites — screaming, fast, disorienting.
+	var banshee_w: float = 0.0 if wave < 3 else minf(0.18, 0.04 + (wave - 3) * 0.02)
 	# Vampires are a mid/late-game elite — they start showing up from wave 3.
-	var vamp_w: float = 0.0 if wave < 3 else minf(0.20, 0.04 + (wave - 3) * 0.02)
+	var vamp_w: float = 0.0 if wave < 3 else minf(0.18, 0.04 + (wave - 3) * 0.02)
 	if r < vamp_w:
 		return "vampire"
-	elif r < vamp_w + wolf_w:
+	elif r < vamp_w + banshee_w:
+		return "banshee"
+	elif r < vamp_w + banshee_w + wolf_w:
 		return "werewolf"
-	elif r < vamp_w + wolf_w + brute_w:
+	elif r < vamp_w + banshee_w + wolf_w + brute_w:
 		return "brute"
-	elif r < vamp_w + wolf_w + brute_w + scout_w:
+	elif r < vamp_w + banshee_w + wolf_w + brute_w + scout_w:
 		return "scout"
 	return "grunt"
 

@@ -72,6 +72,10 @@ func configure(wave: int) -> void:
 			max_hp = 70.0; speed = 92.0; damage = 13.0; attack_cd = 0.9
 			radius = 28.0; scale_f = 3.0; tint = Color.WHITE; prefers_squire = false
 			score_value = 26; drop_chance = 0.38
+		"banshee":   # wave 3+ spectral screamer: fast, ethereal, terrifying wail
+			max_hp = 60.0; speed = 110.0; damage = 14.0; attack_cd = 1.3
+			radius = 26.0; scale_f = 0.1; tint = Color(0.85, 0.9, 1.0); prefers_squire = false
+			score_value = 28; drop_chance = 0.35
 		"werewolf":  # wave 2+ pack hunter: fast, medium HP, pounces hard
 			max_hp = 55.0; speed = 105.0; damage = 11.0; attack_cd = 1.0
 			radius = 28.0; scale_f = 0.15; tint = Color(0.75, 0.6, 0.9); prefers_squire = false
@@ -99,6 +103,8 @@ func configure(wave: int) -> void:
 	_spr = AnimatedSprite2D.new()
 	if kind == "vampire":
 		_spr.sprite_frames = Anim.vampire()
+	elif kind == "banshee":
+		_spr.sprite_frames = Anim.banshee()
 	elif kind == "werewolf":
 		_spr.sprite_frames = Anim.werewolf()
 	elif human:
@@ -113,10 +119,11 @@ func configure(wave: int) -> void:
 	add_child(_spr)
 	_base_scale = Vector2(scale_f, scale_f)
 	_play("idle")
-	# Werewolf frames are 768 px tall (vs the standard 100px), so we calculate
-	# overlay_y manually: aim for top ~20% of frame where head sits.
+	# Non-standard frame heights: compute overlay_y directly instead of using FRAME_CENTER=50.
 	if kind == "werewolf":
 		_overlay_y = -(scale_f * 768.0 * 0.50) - 8.0
+	elif kind == "banshee":
+		_overlay_y = -(scale_f * 724.0 * 0.45) - 8.0
 	else:
 		_overlay_y = overlay_y(10.0 if kind == "vampire" else (39.0 if human else 42.0), scale_f)
 
