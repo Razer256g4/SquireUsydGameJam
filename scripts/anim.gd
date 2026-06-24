@@ -59,8 +59,8 @@ static func arrow_texture() -> Texture2D:
 static func werewolf() -> SpriteFrames:
 	if _cache.has("werewolf"):
 		return _cache["werewolf"]
-	var idle_p := "res://sprites/Firefly_pixel art sprite sheet, werewolf idle breathing animation, 6 frames horizontal strip, 676886.png"
-	var howl_p := "res://sprites/Firefly_Gemini Flash_pixel art sprite sheet, werewolf howl special attack, 7 frames horizontal strip,_head 676886.png"
+	var idle_p := "res://sprites/werewolf/processed/Werewolf-Idle.png"
+	var howl_p := "res://sprites/werewolf/processed/Werewolf-Attack.png"
 	var sf := _build([
 		{"name": "idle",   "path": idle_p, "frames": 6, "fps": 8.0,  "loop": true,  "fw": 234},
 		{"name": "walk",   "path": idle_p, "frames": 6, "fps": 10.0, "loop": true,  "fw": 234},

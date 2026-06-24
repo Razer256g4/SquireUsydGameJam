@@ -74,7 +74,7 @@ func configure(wave: int) -> void:
 			score_value = 26; drop_chance = 0.38
 		"werewolf":  # wave 2+ pack hunter: fast, medium HP, pounces hard
 			max_hp = 55.0; speed = 105.0; damage = 11.0; attack_cd = 1.0
-			radius = 28.0; scale_f = 0.35; tint = Color(0.75, 0.6, 0.9); prefers_squire = false
+			radius = 28.0; scale_f = 0.15; tint = Color(0.75, 0.6, 0.9); prefers_squire = false
 			score_value = 22; drop_chance = 0.32
 		"minion":   # the "67" gag swarm: tiny, weak, fast, despawns on its own
 			max_hp = 6.0; speed = 150.0; damage = 3.0; attack_cd = 0.7
@@ -114,9 +114,9 @@ func configure(wave: int) -> void:
 	_base_scale = Vector2(scale_f, scale_f)
 	_play("idle")
 	# Werewolf frames are 768 px tall (vs the standard 100px), so we calculate
-	# overlay_y manually: position the HP bar 40% down from the top of the frame.
+	# overlay_y manually: aim for top ~20% of frame where head sits.
 	if kind == "werewolf":
-		_overlay_y = -(scale_f * 768.0 * 0.40) - 8.0
+		_overlay_y = -(scale_f * 768.0 * 0.50) - 8.0
 	else:
 		_overlay_y = overlay_y(10.0 if kind == "vampire" else (39.0 if human else 42.0), scale_f)
 
