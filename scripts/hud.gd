@@ -113,9 +113,9 @@ func _render(c: Control) -> void:
 	_render_carry(c, f)
 
 	# Controls hint (bottom-right)
-	c.draw_string(f, Vector2(W - 770, H - 16),
-		"WASD move · Space dash · Ctrl tamper · bump Princess = give · F throw weapon · E tip off · Q scheme · Esc pause · R restart",
-		HORIZONTAL_ALIGNMENT_LEFT, 760, 12, Color(1, 1, 1, 0.4))
+	c.draw_string(f, Vector2(W - 700, H - 16),
+		"WASD move · Space dash · Ctrl tamper · bump Princess = give · E tip off · Q scheme · Esc pause · R restart",
+		HORIZONTAL_ALIGNMENT_LEFT, 690, 12, Color(1, 1, 1, 0.4))
 
 	# Princess speech (under the suspicion meter)
 	if _say_t > 0.0:
