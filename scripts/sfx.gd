@@ -35,6 +35,9 @@ static var _cfg := {}                       # key -> {"vol": dB, "gap": ms}
 static var _booted := false
 static var _unlocked := false               # web autoplay gate: music held until the first user gesture
 
+const DEBUG_AUDIO := true                    # TEMP: prints [SFX] diagnostics to the browser console
+static var _logged_first_sfx := false
+
 # --- lazy boot (no autoload) -----------------------------------------------
 static func _boot() -> void:
 	if _booted:
@@ -62,12 +65,34 @@ static func _boot() -> void:
 	_build_library()
 	_build_config()
 	_apply()
+	if DEBUG_AUDIO:
+		_diag("boot")
 	# Attach under root DEFERRED: the first Sfx call comes from Game._ready(), during
 	# which root is "blocked" (mid-adding the scene) and a direct add_child is rejected,
 	# leaving every player outside the tree -> total silence. Deferring lands it safely
 	# at idle, then we kick off any music that was requested before the holder existed.
 	root.add_child.call_deferred(_holder)
 	Sfx._start_pending_music.call_deferred()
+
+## TEMP diagnostics: report the audio system's state to stdout (browser console on web).
+static func _diag(tag: String) -> void:
+	var keys_with_clips := 0
+	var total := 0
+	for k in _lib:
+		var n: int = (_lib[k] as Array).size()
+		if n > 0:
+			keys_with_clips += 1
+		total += n
+	print("[SFX] %s web=%s booted=%s lib_keys=%d/%d variants=%d serving_exists=%s boss_exists=%s mix_rate=%d out_latency=%.3f" % [
+		tag, str(OS.has_feature("web")), str(_booted),
+		keys_with_clips, _lib.size(), total,
+		str(ResourceLoader.exists(MUSIC_DIR + "serving.ogg")),
+		str(ResourceLoader.exists(MUSIC_DIR + "boss.ogg")),
+		int(AudioServer.get_mix_rate()), AudioServer.get_output_latency()])
+	for b in ["Master", "SFX", "Music"]:
+		var i := AudioServer.get_bus_index(b)
+		if i >= 0:
+			print("[SFX]   bus %s idx=%d vol_db=%.1f mute=%s" % [b, i, AudioServer.get_bus_volume_db(i), str(AudioServer.is_bus_mute(i))])
 
 ## Begin any music requested before the holder finished entering the tree.
 static func _start_pending_music() -> void:
@@ -114,6 +139,10 @@ static func play(key: String, pitch_var := 0.06, volume_db := 0.0) -> void:
 	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
 	p.volume_db = float(cfg.get("vol", 0.0)) + volume_db
 	p.play()
+	if DEBUG_AUDIO and not _logged_first_sfx:
+		_logged_first_sfx = true
+		print("[SFX] first play key='%s' clips=%d stream=%s in_tree=%s playing=%s vol_db=%.1f" % [
+			key, clips.size(), str(p.stream != null), str(p.is_inside_tree()), str(p.playing), p.volume_db])
 
 # --- music ------------------------------------------------------------------
 ## Loop a background track from assets/audio/music/<name>.ogg as a quiet bed.
@@ -126,9 +155,13 @@ static func play_music(name: String, volume_db := -7.0) -> void:
 		return
 	var path := "%s%s.ogg" % [MUSIC_DIR, name]
 	if not ResourceLoader.exists(path):
+		if DEBUG_AUDIO:
+			print("[SFX] play_music '%s' ABORT: resource missing (%s)" % [name, path])
 		return
 	var stream := load(path) as AudioStream
 	if stream == null:
+		if DEBUG_AUDIO:
+			print("[SFX] play_music '%s' ABORT: load() returned null" % name)
 		return
 	if _music.stream == stream and _music.playing:
 		return                              # already on this track — don't restart
@@ -136,6 +169,9 @@ static func play_music(name: String, volume_db := -7.0) -> void:
 	_music.stream = stream
 	_music.volume_db = volume_db
 	_music.play()
+	if DEBUG_AUDIO:
+		print("[SFX] play_music '%s' OK: in_tree=%s playing=%s vol_db=%.1f bus=%s" % [
+			name, str(_music.is_inside_tree()), str(_music.playing), _music.volume_db, _music.bus])
 
 static func stop_music() -> void:
 	if _music:
