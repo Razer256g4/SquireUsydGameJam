@@ -63,7 +63,7 @@ func _build() -> void:
 	_label(box, "CONTROLS", 19, Color(1.0, 0.82, 0.4))
 	_label(box, "Move — WASD / Arrows       Dash — Space       Tamper — Ctrl\n" +
 		"Give — bump the Princess       Tip off — E       Scheme — Q\n" +
-		"Pause — Esc       Restart — R", 17, Color(0.82, 0.92, 1.0))
+		"Pause — Esc       Restart — R       Fullscreen — F11", 17, Color(0.82, 0.92, 1.0))
 
 	_space(box, 14)
 	_label(box, "Press  Space · Enter · click  to begin", 20, Color(0.6, 1.0, 0.7), true)

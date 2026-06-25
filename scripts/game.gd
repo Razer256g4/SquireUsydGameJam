@@ -76,6 +76,7 @@ var _cam: Camera2D                # shakes the VIEW only, so node coordinates st
 func _ready() -> void:
 	add_to_group("game")
 	rng.randomize()
+	Settings.apply_display()               # re-assert fullscreen/vsync so they survive a restart (R)
 	arena = get_viewport_rect().size       # fit the playable area to the actual canvas
 
 	princess = Princess.new()
@@ -166,7 +167,8 @@ func _run_waves(delta: float) -> void:
 				phase_timer = CLEAR_INTERMISSION
 				Sfx.play("wave_clear")
 				princess.level_up()
-				hud.announce("The Princess grows stronger... (Lv.%d)" % princess.level)
+				hud.announce("The Princess grows stronger!  Lv.%d   +%d Max HP · +%d ATK" %
+					[princess.level, int(Princess.LVL_HP_GAIN), int(Princess.LVL_DMG_GAIN)])
 				_wave_banter()
 
 func _run_pickups(delta: float) -> void:
