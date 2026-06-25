@@ -82,8 +82,6 @@ func _input(event: InputEvent) -> void:
 				_tip_off()
 			KEY_Q:
 				_scheme()
-			KEY_F:
-				_throw_weapon()
 
 func _process(delta: float) -> void:
 	if not _active():
@@ -92,6 +90,7 @@ func _process(delta: float) -> void:
 	_hurt_cd = _decay(_hurt_cd, delta)
 	_flash = _decay(_flash, delta)
 	tip_cd = _decay(tip_cd, delta)
+	_tick_speech(delta)
 
 	var input_dir := _read_move()
 	if input_dir != Vector2.ZERO:
@@ -139,6 +138,7 @@ func _try_dash() -> void:
 	if _dash_time > 0.0 or stamina < DASH_COST:
 		return
 	stamina -= DASH_COST
+	Sfx.play("dash")
 	_dash_time = DASH_TIME
 	_dash_dir = _read_move()
 	if _dash_dir == Vector2.ZERO:
@@ -157,6 +157,7 @@ func _tip_off() -> void:
 		return
 	stamina -= TIP_COST
 	tip_cd = TIP_CD
+	Sfx.play("tipoff")
 	for n in get_tree().get_nodes_in_group("monsters"):
 		(n as Monster).enrage()
 	if _game and _game.phase == "serving":
@@ -173,24 +174,6 @@ func _scheme() -> void:
 		_flash = 0.15
 		_flash_col = Color(1.0, 0.4, 0.8)
 
-## Hurl the carried WEAPON at the Princess (F): a ranged version of the bump
-## hand-off. Same genuine/cursed payoff and suspicion change, but you don't have to
-## close the distance. Potions still have to be delivered in person.
-func _throw_weapon() -> void:
-	if carry != "weapon" or not (_game and _game.phase == "serving"):
-		return
-	var pr := get_tree().get_first_node_in_group("princess") as Princess
-	if not pr:
-		return
-	var w := WeaponThrow.new()
-	w.position = global_position + Vector2(0, -10)
-	_game.add_child(w)
-	w.launch(_game, pr, cursed)
-	carry = ""
-	cursed = false
-	_flash = 0.12
-	_flash_col = Color(0.85, 0.9, 1.0)
-
 func _try_pickup() -> void:
 	if carry != "":
 		return
@@ -198,6 +181,7 @@ func _try_pickup() -> void:
 		if global_position.distance_to(p.global_position) <= RADIUS + p.radius + 4.0:
 			carry = p.kind
 			cursed = false
+			Sfx.play("pickup")
 			p.queue_free()
 			return
 
@@ -216,6 +200,7 @@ func _try_hand() -> void:
 		if cursed: pr.receive_cursed_weapon()
 		else: pr.receive_genuine_weapon()
 	if cursed:
+		Sfx.play("gift_curse")          # ominous extra cue; the sip/arm sound plays on the Princess
 		_game.sabotage_suspicion()
 	else:
 		_game.help_resets_suspicion()
@@ -235,13 +220,16 @@ func take_damage(_d: float) -> void:
 	_pop_hit()
 	if hp <= 0.0:
 		hp = 0.0
+		Sfx.play("player_die")
 		_play("death")
 		if _game:
 			_game.lose()
 	else:
+		Sfx.play("player_hurt")
 		_play("hurt")
 
 func _draw() -> void:
+	_draw_speech(_overlay_y)
 	# Carried item floats above the squire's head, with a tell-tale aura if cursed.
 	if carry == "":
 		return

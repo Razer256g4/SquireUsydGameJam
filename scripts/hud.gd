@@ -28,10 +28,6 @@ var monsters := 0
 
 var _announce := ""
 var _announce_t := 0.0
-var _say := ""
-var _say_t := 0.0
-var _sq := ""             # squire / narrator bark (snide villain voice)
-var _sq_t := 0.0
 var _big := ""            # giant centre-screen flash (e.g. the "67" gag)
 var _big_t := 0.0
 var _betray_t := 0.0
@@ -51,8 +47,6 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	var dirty := false
 	if _announce_t > 0.0: _announce_t -= delta; dirty = true
-	if _say_t > 0.0: _say_t -= delta; dirty = true
-	if _sq_t > 0.0: _sq_t -= delta; dirty = true
 	if _big_t > 0.0: _big_t -= delta; dirty = true
 	if _betray_t > 0.0: _betray_t -= delta; dirty = true
 	if dirty and _canvas:
@@ -62,13 +56,17 @@ func announce(text: String) -> void:
 	_announce = text
 	_announce_t = 2.2
 
+## Dialogue now floats above whoever says it (Actor.say), so it reads as coming
+## from the character instead of a banner at the top of the screen.
 func princess_say(text: String) -> void:
-	_say = text
-	_say_t = 2.5
+	var pr := get_tree().get_first_node_in_group("princess") as Actor
+	if pr:
+		pr.say(text, Color(1.0, 0.82, 0.9))
 
 func squire_say(text: String) -> void:
-	_sq = text
-	_sq_t = 2.6
+	var sq := get_tree().get_first_node_in_group("squire") as Actor
+	if sq:
+		sq.say(text, Color(0.7, 1.0, 0.72))
 
 func big_flash(text: String) -> void:
 	_big = text
@@ -113,21 +111,11 @@ func _render(c: Control) -> void:
 	_render_carry(c, f)
 
 	# Controls hint (bottom-right)
-	c.draw_string(f, Vector2(W - 770, H - 16),
-		"WASD move · Space dash · Ctrl tamper · bump Princess = give · F throw weapon · E tip off · Q scheme · Esc pause · R restart",
-		HORIZONTAL_ALIGNMENT_LEFT, 760, 12, Color(1, 1, 1, 0.4))
+	c.draw_string(f, Vector2(W - 700, H - 16),
+		"WASD move · Space dash · Ctrl tamper · bump Princess = give · E tip off · Q scheme · Esc pause · R restart",
+		HORIZONTAL_ALIGNMENT_LEFT, 690, 12, Color(1, 1, 1, 0.4))
 
-	# Princess speech (under the suspicion meter)
-	if _say_t > 0.0:
-		var sa: float = clampf(_say_t, 0.0, 1.0)
-		c.draw_string(f, Vector2(0, 92), "\"%s\"" % _say, HORIZONTAL_ALIGNMENT_CENTER, W, 22,
-			Color(1.0, 0.85, 0.9, sa))
-
-	# Squire / narrator bark (your snide villain voice), just below her line
-	if _sq_t > 0.0:
-		var qa: float = clampf(_sq_t, 0.0, 1.0)
-		c.draw_string(f, Vector2(0, 120), "— %s" % _sq, HORIZONTAL_ALIGNMENT_CENTER, W, 20,
-			Color(0.6, 1.0, 0.65, qa))
+	# (Character dialogue now floats above the Princess / Squire — see Actor.say.)
 
 	# Giant centre-screen flash (the "67" gag, etc.)
 	if _big_t > 0.0 and not _over:
@@ -182,7 +170,12 @@ func _render_princess(c: Control, f: Font) -> void:
 
 func _render_squire(c: Control, f: Font) -> void:
 	c.draw_string(f, Vector2(16, H - 74), "SQUIRE (you)", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.7, 0.9, 0.7))
-	_bar(c, Rect2(16, H - 64, 240, 16), s_hp / Squire.MAX_HP, Color(0.85, 0.3, 0.3))
+	# HP as discrete hit-pips (each hit = one pip). A smooth bar made the final 25%
+	# chunk look "safe" when one hit there is lethal — pips show exactly how many
+	# hits remain, so death lines up with the last pip emptying.
+	var pip := Squire.MAX_HP / float(Squire.MAX_HITS)
+	var pips_left: int = clampi(int(round(s_hp / pip)), 0, Squire.MAX_HITS)
+	_render_pips(c, Rect2(16, H - 64, 240, 16), Squire.MAX_HITS, pips_left, Color(0.85, 0.3, 0.3))
 	c.draw_string(f, Vector2(264, H - 51), "HP", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.8))
 	_bar(c, Rect2(16, H - 44, 240, 12), s_stam / Squire.MAX_STAMINA, Color(0.35, 0.7, 1.0))
 	c.draw_string(f, Vector2(264, H - 34), "Stamina", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.8))
@@ -222,6 +215,18 @@ func _bar(c: Control, rect: Rect2, ratio: float, fill: Color) -> void:
 	var r: float = clampf(ratio, 0.0, 1.0)
 	c.draw_rect(Rect2(rect.position, Vector2(rect.size.x * r, rect.size.y)), fill)
 	c.draw_rect(rect, Color(1, 1, 1, 0.25), false, 2.0)
+
+## Draw `total` equal segments across `rect`; the first `filled` are lit. Used for
+## the Squire's hit-based HP so each remaining hit is a clearly countable pip.
+func _render_pips(c: Control, rect: Rect2, total: int, filled: int, col: Color) -> void:
+	var gap := 4.0
+	var w: float = (rect.size.x - gap * float(total - 1)) / float(total)
+	for i in total:
+		var cell := Rect2(rect.position + Vector2(i * (w + gap), 0.0), Vector2(w, rect.size.y))
+		c.draw_rect(cell, Color(0, 0, 0, 0.55))
+		if i < filled:
+			c.draw_rect(cell, col)
+		c.draw_rect(cell, Color(1, 1, 1, 0.25), false, 2.0)
 
 
 class _HudCanvas:

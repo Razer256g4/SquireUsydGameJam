@@ -22,6 +22,11 @@ const HP_PENALTY_CAP := 120.0 # ceiling on total max-HP lost to cursed potions (
 const GENUINE_HEAL := 70.0
 const GENUINE_POWER := 0.05
 
+# per-level gains — named so the HUD/popup can show exactly what each level grants
+const LVL_HP_GAIN := 25.0
+const LVL_DMG_GAIN := 5.0
+const LVLUP_TIME := 1.8       # how long the floating "LEVEL UP" readout lingers
+
 # --- telegraphed abilities (used in BOTH phases), each on its own cooldown ---
 # Every flashy move first shows a Telegraph for *_DELAY seconds, THEN strikes, so
 # the Squire (and the horde) can SEE it coming and walk/dash out of the danger zone.
@@ -94,6 +99,7 @@ var _cd := 0.0
 var _anim_lock := 0.0
 var _flash := 0.0
 var _flash_col := Color.RED
+var _lvlup_t := 0.0          # >0 while the floating "LEVEL UP" popup is showing
 var _nuke_cd := 0.0
 var _meteor_cd := 1.5
 var _nova_cd := 3.0
@@ -161,6 +167,8 @@ func _process(delta: float) -> void:
 	_beam_cd = _decay(_beam_cd, delta)
 	_charge_cd = _decay(_charge_cd, delta)
 	_gcd = _decay(_gcd, delta)
+	_tick_speech(delta)
+	_lvlup_t = _decay(_lvlup_t, delta)
 
 	if poison_dps > 0.0:
 		hp -= poison_dps * delta
@@ -226,6 +234,7 @@ func _try_abilities(target: Monster) -> void:
 
 func _attack_cleave() -> void:
 	_cd = base_attack_cd
+	Sfx.play("swing")
 	_play("attack")
 	_anim_lock = 0.35
 	var dmg := base_damage * power_mult
@@ -252,7 +261,7 @@ func _strike_circle(center: Vector2, radius: float, col: Color, dmg: float, hit_
 	if _game:                              # juice: every big AoE bomb thumps the screen
 		_game.shake(0.35)
 		_game.hitstop(0.05)
-	# SFX: AoE impact (deferred)
+	Sfx.play("boom")
 
 func _telegraph_line(from: Vector2, to: Vector2, half_w: float, delay: float, col: Color, dmg: float, hit_squire: bool) -> void:
 	var me := self
@@ -271,6 +280,7 @@ func _strike_line(from: Vector2, to: Vector2, half_w: float, col: Color, dmg: fl
 			sq.take_damage(dmg)
 	Fx.bolt(get_parent(), from, to, col, 0.3)
 	Fx.sparks(get_parent(), to, col, 24, 160.0, 0.5)
+	Sfx.play("zap")
 
 func _dist_to_segment(p: Vector2, a: Vector2, b: Vector2) -> float:
 	var ab: Vector2 = b - a
@@ -283,18 +293,21 @@ func _dist_to_segment(p: Vector2, a: Vector2, b: Vector2) -> float:
 # --- the telegraphed moves (target = enemy cluster in serving, the Squire in boss) ---
 func _cast_meteor(center: Vector2) -> void:
 	_meteor_cd = METEOR_CD
+	Sfx.play("cast")
 	_play("attack"); _anim_lock = 0.4
 	_flash = 0.2; _flash_col = FIRE
 	_telegraph_circle(center, METEOR_RADIUS, METEOR_DELAY, FIRE, base_damage * power_mult * METEOR_POWER, hostile)
 
 func _cast_nova() -> void:
 	_nova_cd = NOVA_CD
+	Sfx.play("cast")
 	_play("attack"); _anim_lock = 0.35
 	_flash = 0.2; _flash_col = HOLY
 	_telegraph_circle(global_position, NOVA_RADIUS, NOVA_DELAY, HOLY, base_damage * power_mult * NOVA_POWER, hostile)
 
 func _cast_shower(center: Vector2) -> void:
 	_shower_cd = SHOWER_CD
+	Sfx.play("cast")
 	_play("attack"); _anim_lock = 0.4
 	_flash = 0.2; _flash_col = FIRE
 	var dmg := base_damage * power_mult * SHOWER_POWER
@@ -305,6 +318,7 @@ func _cast_shower(center: Vector2) -> void:
 
 func _cast_beam(center: Vector2) -> void:
 	_beam_cd = BEAM_CD
+	Sfx.play("cast")
 	_play("attack"); _anim_lock = 0.35
 	_flash = 0.2; _flash_col = ARC
 	var dmg := base_damage * power_mult * BEAM_POWER
@@ -314,6 +328,7 @@ func _cast_beam(center: Vector2) -> void:
 
 func _cast_charge(target_pos: Vector2) -> void:
 	_charge_cd = CHARGE_CD
+	Sfx.play("cast")
 	_flash = 0.2; _flash_col = CHARGE_COL
 	var from := global_position
 	var to := Game.clamp_to_arena(target_pos, RADIUS)
@@ -357,6 +372,7 @@ func _cast_smite() -> void:
 	if targets.is_empty():
 		return
 	_smite_cd = SMITE_CD
+	Sfx.play("cast")
 	_flash = 0.2; _flash_col = ARC
 	var origin := global_position + Vector2(0, -40)
 	var dmg := base_damage * power_mult * SMITE_POWER
@@ -448,6 +464,7 @@ func _boss_abilities(sq: Squire, dist: float) -> void:
 
 func _nuke(sq: Squire) -> void:
 	_nuke_cd = NUKE_CD
+	Sfx.play("cast")
 	_flash = 0.25
 	_flash_col = Color(1.0, 0.5, 0.1)
 	_telegraph_circle(sq.global_position, NUKE_RADIUS, NUKE_DELAY, Color(1.0, 0.4, 0.1), _boss_damage() * NUKE_POWER, true)
@@ -455,12 +472,14 @@ func _nuke(sq: Squire) -> void:
 # --- gifts from the squire ---
 func receive_genuine_potion() -> void:
 	hp = minf(_eff_max_hp(), hp + GENUINE_HEAL)
+	Sfx.play("princess_drink")
 	_flash = 0.25
 	_flash_col = Color(0.4, 1.0, 0.5)
 	_say_thanks(false)
 
 func receive_genuine_weapon() -> void:
 	power_mult = minf(1.6, power_mult + GENUINE_POWER)
+	Sfx.play("princess_arm")
 	_flash = 0.25
 	_flash_col = Color(1.0, 0.9, 0.4)
 	_say_thanks(false)
@@ -470,6 +489,7 @@ func receive_cursed_potion() -> void:
 	hp_penalty = minf(HP_PENALTY_CAP, hp_penalty + CURSE_HP_PEN)
 	regen_mult = maxf(0.2, regen_mult - CURSE_REGEN)
 	hp -= CURSE_SIP
+	Sfx.play("princess_drink")
 	if hp <= 0.0:
 		_on_death()
 		return
@@ -480,6 +500,7 @@ func receive_cursed_potion() -> void:
 func receive_cursed_weapon() -> void:
 	power_mult = maxf(0.25, power_mult - CURSE_POWER)
 	base_attack_cd = minf(1.2, base_attack_cd + 0.04)
+	Sfx.play("princess_arm")
 	_flash = 0.25
 	_flash_col = Color(0.6, 0.2, 0.8)
 	_say_thanks(true)
@@ -503,6 +524,7 @@ func _on_death() -> void:
 		return
 	_dead = true
 	hp = 0.0
+	Sfx.play("player_die")                  # her fall is a big moment — use the heavier death cue
 	_play("death")
 	_anim_lock = 999.0
 	if _game:
@@ -511,15 +533,18 @@ func _on_death() -> void:
 # --- progression / betrayal ---
 func level_up() -> void:
 	level += 1
-	max_hp += 25.0
+	Sfx.play("levelup")
+	max_hp += LVL_HP_GAIN
 	hp = minf(_eff_max_hp(), hp + 40.0)
-	base_damage += 5.0
+	base_damage += LVL_DMG_GAIN
 	attack_range += 2.0
 	_flash = 0.4
 	_flash_col = Color(1.0, 0.9, 0.3)
+	_lvlup_t = LVLUP_TIME       # pop the floating "LEVEL UP +stats" readout above her
 
 func become_boss() -> void:
 	hostile = true
+	Sfx.play("betray_roar")
 	_flash = 0.6
 	_flash_col = Color(1.0, 0.2, 0.2)
 	_play("hurt")
@@ -569,3 +594,21 @@ func _draw() -> void:
 		Vector2(-22, cy + 16), Vector2(-22, cy), Vector2(-11, cy + 9),
 		Vector2(0, cy - 8), Vector2(11, cy + 9), Vector2(22, cy), Vector2(22, cy + 16)
 	]), crown)
+	_draw_speech(_overlay_y)
+	_draw_levelup()
+
+## Floating gold "LEVEL UP" readout that drifts up above her head, so the player sees
+## exactly how much stronger she just got (the gains matter — you're sabotaging her).
+func _draw_levelup() -> void:
+	if _lvlup_t <= 0.0:
+		return
+	var font := ThemeDB.fallback_font
+	var prog: float = 1.0 - clampf(_lvlup_t / LVLUP_TIME, 0.0, 1.0)   # 0 at spawn, 1 at the end
+	var alpha: float = clampf(_lvlup_t / 0.6, 0.0, 1.0)              # fade out over the last 0.6s
+	var rise: float = -44.0 - prog * 36.0                            # drifts upward as it ages
+	var txt := "LEVEL UP!   +%d HP · +%d ATK" % [int(LVL_HP_GAIN), int(LVL_DMG_GAIN)]
+	var fsize := 16
+	var tw: float = font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize).x
+	var at := Vector2(-tw * 0.5, _overlay_y + rise)
+	draw_string(font, at + Vector2(1.5, 1.5), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, Color(0, 0, 0, 0.6 * alpha))
+	draw_string(font, at, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, Color(1.0, 0.88, 0.35, alpha))

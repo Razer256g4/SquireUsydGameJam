@@ -16,6 +16,11 @@ If the **Princess dies** or **you die**, it's game over.
 | Hand carried item to the Princess | **bump into her** |
 | Use carried item | `Ctrl` — drink a **potion** yourself (heal), or **yeet** a **weapon** at the Princess (ranged upgrade) |
 | Restart | `R` |
+| Pause / Settings | `Esc` |
+| Toggle fullscreen | `F11` |
+
+Press `Esc` for the **Settings** menu (Display: fullscreen & vsync · Audio: master/SFX/music
+volume · Gameplay: screen shake & hit-stop · plus *Reset to defaults*), then **Resume** or **Restart**.
 
 You can only carry **one item at a time**. Walk over loot to pick it up.
 

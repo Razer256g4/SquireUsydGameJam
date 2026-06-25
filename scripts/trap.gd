@@ -139,34 +139,46 @@ func _step_spikes(delta: float) -> void:
 
 # --- distance damage (Hazard's pattern, gated per target) ------------------
 func _damage_circle(center: Vector2, r: float, amount: float) -> void:
+	var hit := false
 	if hurt_monsters:
 		for n in get_tree().get_nodes_in_group("monsters"):
 			var m := n as Monster
 			if m and center.distance_to(m.global_position) <= r + m.radius:
 				m.take_damage(amount)
+				hit = true
 	if hurt_princess:
 		var pr := get_tree().get_first_node_in_group("princess") as Princess
 		if pr and center.distance_to(pr.global_position) <= r + Princess.RADIUS:
 			pr.take_damage(amount)
+			hit = true
 	if hurt_squire:
 		var sq := get_tree().get_first_node_in_group("squire") as Squire
 		if sq and center.distance_to(sq.global_position) <= r + Squire.RADIUS:
 			sq.take_damage(amount)
+			hit = true
+	if hit:
+		Sfx.play("trap_hit")
 
 func _damage_segment(a: Vector2, b: Vector2, half_w: float, amount: float) -> void:
+	var hit := false
 	if hurt_monsters:
 		for n in get_tree().get_nodes_in_group("monsters"):
 			var m := n as Monster
 			if m and _dist_to_segment(m.global_position, a, b) <= half_w + m.radius:
 				m.take_damage(amount)
+				hit = true
 	if hurt_princess:
 		var pr := get_tree().get_first_node_in_group("princess") as Princess
 		if pr and _dist_to_segment(pr.global_position, a, b) <= half_w + Princess.RADIUS:
 			pr.take_damage(amount)
+			hit = true
 	if hurt_squire:
 		var sq := get_tree().get_first_node_in_group("squire") as Squire
 		if sq and _dist_to_segment(sq.global_position, a, b) <= half_w + Squire.RADIUS:
 			sq.take_damage(amount)
+			hit = true
+	if hit:
+		Sfx.play("trap_hit")
 
 # point→segment distance (copied from princess.gd so Trap is standalone)
 func _dist_to_segment(p: Vector2, a: Vector2, b: Vector2) -> float:
