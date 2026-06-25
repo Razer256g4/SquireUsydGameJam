@@ -96,6 +96,8 @@ var _cam: Camera2D                # shakes the VIEW only, so node coordinates st
 
 func _ready() -> void:
 	add_to_group("game")
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # crisp pixels for the tiled floor in _draw()
+	_load_floor()
 	rng.randomize()
 	Settings.apply_display()               # re-assert fullscreen/vsync so they survive a restart (R)
 	arena = get_viewport_rect().size       # fit the playable area to the actual canvas
@@ -447,6 +449,44 @@ func hitstop(secs := 0.06) -> void:
 	Engine.time_scale = 1.0
 	_hitstop = false
 
+# --- arena floor ---
+# Tiled dungeon floor using 0x72 "Dungeon Tileset II" (CC0) — vendored under
+# assets/terrain/0x72/. Tile 0 (floor_1, plain) is the dominant fill; a deterministic
+# per-cell hash sprinkles the lightly-cracked variants in ~1 cell in 6 so the floor reads
+# natural without obvious repetition. The source tiles stay editable: the 16x16 PNGs +
+# atlas_floor-16x16.png open directly in Aseprite, Tiled (16px grid), or Godot's TileSet
+# editor. Drawn in _draw() (re-runs only on resize), so the tile loop is cheap.
+# Source-agnostic: each tile is scaled to FLOOR_TILE_PX, so swapping in any pixel-art floor
+# PNG (16/32/64px) still aligns via nearest-filter upscale.
+const FLOOR_TILE_PX := 64.0   # 16x16 source -> 4x nearest upscale (chunky, matches the buildings)
+const FLOOR_TINT := Color(0.82, 0.82, 0.9)   # darken + slight cool so the warm brown sits in the moody arena
+const FLOOR_TILE_PATHS := [
+	"res://assets/terrain/0x72/floor_1.png",   # plain (dominant fill)
+	"res://assets/terrain/0x72/floor_2.png",   # hairline crack
+	"res://assets/terrain/0x72/floor_3.png",   # cracks
+	"res://assets/terrain/0x72/floor_6.png",   # cracks
+	"res://assets/terrain/0x72/floor_5.png",   # near-plain speckle
+]
+var _floor_tex: Array[Texture2D] = []
+
+func _load_floor() -> void:
+	_floor_tex.clear()
+	for p in FLOOR_TILE_PATHS:
+		var tex := load(p) as Texture2D
+		if tex != null:
+			_floor_tex.append(tex)
+
+## Deterministic per-cell tile: tile 0 (plain) dominates; ~1 cell in 6 draws one of the
+## cracked variants (indices 1..n-1), spread evenly by the hash.
+func _floor_pick(col: int, row: int) -> int:
+	var n := _floor_tex.size()
+	if n <= 1:
+		return 0
+	var h: int = absi((col * 73856093) ^ (row * 19349663))
+	if h % 6 != 0:
+		return 0
+	return 1 + (h / 6) % (n - 1)
+
 # --- scenery ---
 func _rebuild_scenery() -> void:
 	for s in get_tree().get_nodes_in_group("scenery"):
@@ -478,14 +518,32 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2(-48, -48), arena + Vector2(96, 96)), Color(0.10, 0.10, 0.14))
 	var inner := Rect2(Vector2(WALL_MARGIN, WALL_MARGIN),
 		arena - Vector2(WALL_MARGIN * 2.0, WALL_MARGIN * 2.0))
-	draw_rect(inner, Color(0.16, 0.16, 0.22))
-	var step := 64.0
-	var x := WALL_MARGIN
-	while x < arena.x - WALL_MARGIN:
-		draw_line(Vector2(x, WALL_MARGIN), Vector2(x, arena.y - WALL_MARGIN), Color(1, 1, 1, 0.025), 1.0)
-		x += step
-	var y := WALL_MARGIN
-	while y < arena.y - WALL_MARGIN:
-		draw_line(Vector2(WALL_MARGIN, y), Vector2(arena.x - WALL_MARGIN, y), Color(1, 1, 1, 0.025), 1.0)
-		y += step
-	draw_rect(inner, Color(0.40, 0.34, 0.5), false, 5.0)
+	if _floor_tex.is_empty():
+		draw_rect(inner, Color(0.16, 0.16, 0.22))   # fallback: flat fill if the tiles failed to load
+	else:
+		_draw_floor(inner)
+	draw_rect(inner, Color(0.30, 0.29, 0.38), false, 5.0)   # stone-edge border
+
+## Tile the stone floor across `inner`. Edge cells are cropped (not squashed) via
+## draw_texture_rect_region so the mortar grid stays aligned right up to the wall.
+func _draw_floor(inner: Rect2) -> void:
+	var ts := FLOOR_TILE_PX
+	var x_end := inner.position.x + inner.size.x
+	var y_end := inner.position.y + inner.size.y
+	var row := 0
+	var y := inner.position.y
+	while y < y_end:
+		var th := minf(ts, y_end - y)
+		var col := 0
+		var x := inner.position.x
+		while x < x_end:
+			var tw := minf(ts, x_end - x)
+			var tex := _floor_tex[_floor_pick(col, row)]
+			var sz := tex.get_size()
+			# Crop the source proportionally so partial edge tiles keep the same pixel scale.
+			var src := Rect2(Vector2.ZERO, Vector2(sz.x * (tw / ts), sz.y * (th / ts)))
+			draw_texture_rect_region(tex, Rect2(Vector2(x, y), Vector2(tw, th)), src, FLOOR_TINT)
+			x += ts
+			col += 1
+		y += ts
+		row += 1
