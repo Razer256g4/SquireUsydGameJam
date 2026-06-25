@@ -22,6 +22,11 @@ const HP_PENALTY_CAP := 120.0 # ceiling on total max-HP lost to cursed potions (
 const GENUINE_HEAL := 70.0
 const GENUINE_POWER := 0.05
 
+# per-level gains — named so the HUD/popup can show exactly what each level grants
+const LVL_HP_GAIN := 25.0
+const LVL_DMG_GAIN := 5.0
+const LVLUP_TIME := 1.8       # how long the floating "LEVEL UP" readout lingers
+
 # --- telegraphed abilities (used in BOTH phases), each on its own cooldown ---
 # Every flashy move first shows a Telegraph for *_DELAY seconds, THEN strikes, so
 # the Squire (and the horde) can SEE it coming and walk/dash out of the danger zone.
@@ -94,6 +99,7 @@ var _cd := 0.0
 var _anim_lock := 0.0
 var _flash := 0.0
 var _flash_col := Color.RED
+var _lvlup_t := 0.0          # >0 while the floating "LEVEL UP" popup is showing
 var _nuke_cd := 0.0
 var _meteor_cd := 1.5
 var _nova_cd := 3.0
@@ -162,6 +168,7 @@ func _process(delta: float) -> void:
 	_charge_cd = _decay(_charge_cd, delta)
 	_gcd = _decay(_gcd, delta)
 	_tick_speech(delta)
+	_lvlup_t = _decay(_lvlup_t, delta)
 
 	if poison_dps > 0.0:
 		hp -= poison_dps * delta
@@ -527,12 +534,13 @@ func _on_death() -> void:
 func level_up() -> void:
 	level += 1
 	Sfx.play("levelup")
-	max_hp += 25.0
+	max_hp += LVL_HP_GAIN
 	hp = minf(_eff_max_hp(), hp + 40.0)
-	base_damage += 5.0
+	base_damage += LVL_DMG_GAIN
 	attack_range += 2.0
 	_flash = 0.4
 	_flash_col = Color(1.0, 0.9, 0.3)
+	_lvlup_t = LVLUP_TIME       # pop the floating "LEVEL UP +stats" readout above her
 
 func become_boss() -> void:
 	hostile = true
@@ -587,3 +595,20 @@ func _draw() -> void:
 		Vector2(0, cy - 8), Vector2(11, cy + 9), Vector2(22, cy), Vector2(22, cy + 16)
 	]), crown)
 	_draw_speech(_overlay_y)
+	_draw_levelup()
+
+## Floating gold "LEVEL UP" readout that drifts up above her head, so the player sees
+## exactly how much stronger she just got (the gains matter — you're sabotaging her).
+func _draw_levelup() -> void:
+	if _lvlup_t <= 0.0:
+		return
+	var font := ThemeDB.fallback_font
+	var prog: float = 1.0 - clampf(_lvlup_t / LVLUP_TIME, 0.0, 1.0)   # 0 at spawn, 1 at the end
+	var alpha: float = clampf(_lvlup_t / 0.6, 0.0, 1.0)              # fade out over the last 0.6s
+	var rise: float = -44.0 - prog * 36.0                            # drifts upward as it ages
+	var txt := "LEVEL UP!   +%d HP · +%d ATK" % [int(LVL_HP_GAIN), int(LVL_DMG_GAIN)]
+	var fsize := 16
+	var tw: float = font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize).x
+	var at := Vector2(-tw * 0.5, _overlay_y + rise)
+	draw_string(font, at + Vector2(1.5, 1.5), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, Color(0, 0, 0, 0.6 * alpha))
+	draw_string(font, at, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, Color(1.0, 0.88, 0.35, alpha))
