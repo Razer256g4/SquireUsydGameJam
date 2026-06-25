@@ -169,6 +169,6 @@ func _dismiss() -> void:
 	if _pause_menu:
 		_pause_menu.process_mode = Node.PROCESS_MODE_ALWAYS
 	get_tree().paused = false
-	Sfx.serving_music(0.0)       # gameplay begins — crossfade the menu theme into the calm serving track
+	Sfx.serving_music(0.0)       # gameplay begins — hard-cut the menu theme to the calm serving track
 	Sfx.play("ui_click")
 	queue_free()

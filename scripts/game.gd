@@ -132,10 +132,15 @@ func _ready() -> void:
 	_cam.make_current()
 
 	_build_scenery()
-	# Menu theme plays under the cutscene + controls briefing; the serving track takes over
-	# when the briefing is dismissed (IntroScreen._dismiss). On an R-restart the intro is
-	# already `seen`, so there's no briefing to wait on — start the serving track directly.
-	Sfx.play_music("menu" if not INTRO_SCREEN.seen else "serving")
+	# MUSIC RULE: the calm serving track plays ONLY inside the arena; the menu theme
+	# (menu.mp3) scores everything before it — the opening cutscene + the controls briefing.
+	# A fresh run shows those, so play the menu theme; IntroScreen._dismiss hands off to the
+	# calm track the instant the arena begins. An R-restart skips the cutscene/briefing (intro
+	# already `seen`) and drops straight into the arena, so start the calm track immediately.
+	if INTRO_SCREEN.seen:
+		Sfx.serving_music(0.0)       # restart: the arena begins now -> calm
+	else:
+		Sfx.play_music("menu")       # fresh: menu theme over the cutscene + briefing
 	queue_redraw()
 
 ## Hand off from the opening story cutscene to the controls briefing (both stay paused).
