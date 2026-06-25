@@ -68,6 +68,7 @@ const BARK_INTERVAL := Vector2(7.0, 11.0)   # spacing of her escalating suspicio
 # --- runtime state ---
 var phase := "serving"            # "serving" | "boss" | "won" | "lost"
 var score := 0
+var elapsed := 0.0                # seconds of active play (serving + boss); shown as the run timer
 var wave := 0
 var suspicion := 0.0
 var doubt_floor := 0.0           # suspicion can never fall below this; ratchets up with each sabotage
@@ -161,9 +162,13 @@ func _process(delta: float) -> void:
 
 	match phase:
 		"serving":
+			elapsed += delta
 			_serving_process(delta)
 			hud.update_state(self)
+			if phase == "serving":           # _serving_process may have just tripped the betrayal (-> boss music)
+				Sfx.serving_music(suspicion / SUSPICION_MAX)
 		"boss":
+			elapsed += delta
 			_boss_process(delta)
 			hud.update_state(self)
 
@@ -273,7 +278,7 @@ func win() -> void:
 
 func _after_victory_cutscene() -> void:
 	get_tree().paused = false
-	hud.show_end(true, score, wave)
+	hud.show_end(true, elapsed, wave)
 
 ## cause: "queen" if the Princess struck you down (the boss fight), else a witty
 ## "pointless death". The squire passes this based on the phase it died in.
@@ -283,7 +288,7 @@ func lose(cause := "") -> void:
 	phase = "lost"
 	Sfx.play("lose")
 	hud.update_state(self)      # final snapshot so the HP pips show the lethal hit (0 left), not a stale 1
-	hud.show_end(false, score, wave, cause)
+	hud.show_end(false, elapsed, wave, cause)
 
 ## A sabotage (cursed gift or tip-off) spikes suspicion on an exponential curve AND
 ## permanently ratchets up the doubt floor — the longer the streak since your last

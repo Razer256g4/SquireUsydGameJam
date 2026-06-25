@@ -591,7 +591,7 @@ func _line(x: float, y: float, w: float, h: float, col: Color) -> void:
 # text) so "what wave am I on / how am I scoring" is always answerable mid-run.
 # Current-run only — resets with R like everything else.
 func _build_runinfo() -> void:
-	_run_info = _label("WAVE 1     SCORE 0", 20, Color(1.0, 0.93, 0.7), true)
+	_run_info = _label("WAVE 1     TIME 0:00", 20, Color(1.0, 0.93, 0.7), true)
 	_run_info.offset_left = 18
 	_run_info.offset_top = 12
 	_run_info.offset_right = 380
@@ -752,7 +752,12 @@ func betray() -> void:
 
 ## cause: "queen" (the Princess executed you, in the boss fight), "" / anything else
 ## (a pointless death — monsters, your own chaos, a stray trap).
-func show_end(won: bool, final_score: int, final_wave: int, cause := "") -> void:
+# Format a run duration (seconds) as M:SS for the timer readouts.
+func _fmt_time(t: float) -> String:
+	var secs := int(t)
+	return "%d:%02d" % [secs / 60, secs % 60]
+
+func show_end(won: bool, final_time: float, final_wave: int, cause := "") -> void:
 	if won:
 		_end_title.text = "LONG LIVE THE SQUIRE"
 		_end_title.add_theme_color_override("font_color", Color(0.5, 1.0, 0.6))
@@ -765,7 +770,7 @@ func show_end(won: bool, final_score: int, final_wave: int, cause := "") -> void
 		_end_title.text = "A POINTLESS DEATH"
 		_end_title.add_theme_color_override("font_color", Color(1.0, 0.6, 0.3))
 		_end_sub.text = Lines.pick(Lines.POINTLESS_DEATH) if Lines.POINTLESS_DEATH.size() > 0 else "Not even the Princess noticed."
-	_end_stats.text = "Reached wave %d  ·  Score %d" % [final_wave, final_score]
+	_end_stats.text = "Reached wave %d  ·  Time %s" % [final_wave, _fmt_time(final_time)]
 	_end_root.visible = true
 	_end_title.modulate.a = 0.0
 	_end_title.scale = Vector2(1.5, 1.5)
@@ -784,7 +789,7 @@ func update_state(game: Game) -> void:
 	var boss := game.phase == "boss"
 
 	if _run_info:
-		_run_info.text = "WAVE %d     SCORE %d" % [game.wave, game.score]
+		_run_info.text = "WAVE %d     TIME %s" % [game.wave, _fmt_time(game.elapsed)]
 
 	# suspicion / boss banner
 	_sus_bar.visible = not boss
