@@ -156,6 +156,47 @@ const META_LEGEND := [
 	"you paid attention to the meter. she didn't.",
 ]
 
+# --- story cutscenes (title + body per beat; visuals chosen in cutscene.gd) ---
+## OPENING: the squire finds the amulet and resolves to betray the beloved Princess.
+const STORY_OPENING := [
+	{
+		"title": "THE BELOVED PRINCESS",
+		"body": "Princess Paladin — radiant, mighty, and adored by every soul in the realm. Wherever she walked, the people cheered her name.",
+	},
+	{
+		"title": "HER FAITHFUL SQUIRE",
+		"body": "And ever in her shadow stood her squire. Loyal. Trusted. Unseen. No crowd had ever once cheered for him.",
+	},
+	{
+		"title": "THE AMULET",
+		"body": "Then, in the dark beneath the keep, he found it — an ancient amulet that drinks the power of whatever it slays.",
+	},
+	{
+		"title": "THE PLAN",
+		"body": "So he would serve her. Earn her trust. And when her guard fell lowest, take her power, her crown, and her throne for his own.",
+	},
+]
+
+## VICTORY: she falls, the squire is crowned a feared king — and the wheel turns again.
+const STORY_VICTORY := [
+	{
+		"title": "THE PRINCESS FALLS",
+		"body": "At last her light goes out. The amulet blazes awake — and all of her stolen power floods into him.",
+	},
+	{
+		"title": "ALL HAIL THE KING",
+		"body": "They crowned the squire king. Strong, dreaded, unchallenged. None now remember the princess he once served.",
+	},
+	{
+		"title": "YEARS PASS",
+		"body": "He rules from a cold throne. Feared by all, loved by none. The realm holds its breath and waits.",
+	},
+	{
+		"title": "THE WHEEL TURNS",
+		"body": "And there, in the new king's shadow, stands a faithful squire... who has only just found a very old amulet.",
+	},
+]
+
 # --- the Angel of Retribution (divine punishment for serial sabotage) --------
 const ANGEL_SQUIRE := [
 	"I can explain. (I cannot.)",

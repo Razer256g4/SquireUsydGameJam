@@ -19,6 +19,9 @@ const WALL_MARGIN := 28.0
 # Loaded by path (not the `IntroScreen` global) so it resolves even before the editor
 # has registered the new class — avoids a "class not declared" parse error on first run.
 const INTRO_SCREEN = preload("res://scripts/intro.gd")
+# Same path-load trick: the story cutscene player (opening + victory), so it resolves
+# before the editor has registered the new `Cutscene` class.
+const CUTSCENE = preload("res://scripts/cutscene.gd")
 
 # --- pacing / difficulty tuning ---
 const FIRST_INTERMISSION := 3.5
@@ -113,9 +116,12 @@ func _ready() -> void:
 
 	add_child(PauseMenu.new())
 
-	# Start-of-run briefing (premise + controls), shown once per session.
+	# Story cutscene (the amulet + the betrayal) THEN the controls briefing, both shown
+	# once per session. The cutscene marks INTRO_SCREEN.seen so a quick R won't replay it.
 	if not INTRO_SCREEN.seen:
-		add_child(INTRO_SCREEN.new())
+		var opening := CUTSCENE.opening()
+		opening.finished.connect(_show_intro)
+		add_child(opening)
 
 	# Camera centred on the arena keeps the exact current framing (arena == viewport),
 	# and lets screen-shake jitter the view via its offset without moving any node.
@@ -127,6 +133,10 @@ func _ready() -> void:
 	_build_scenery()
 	Sfx.play_music("serving")    # loops assets/audio/music/serving.ogg if present (silent otherwise)
 	queue_redraw()
+
+## Hand off from the opening story cutscene to the controls briefing (both stay paused).
+func _show_intro() -> void:
+	add_child(INTRO_SCREEN.new())
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
@@ -252,6 +262,14 @@ func win() -> void:
 	phase = "won"
 	Sfx.play("win")
 	hud.update_state(self)      # final snapshot — _process stops refreshing once we leave the play phases
+	# Victory cutscene (her power stolen → crowned king → the wheel turns) plays over the
+	# arena; when it finishes it unpauses and reveals the existing end card beneath it.
+	var vic := CUTSCENE.victory(score, wave)
+	vic.finished.connect(_after_victory_cutscene)
+	add_child(vic)
+
+func _after_victory_cutscene() -> void:
+	get_tree().paused = false
 	hud.show_end(true, score, wave)
 
 ## cause: "queen" if the Princess struck you down (the boss fight), else a witty
