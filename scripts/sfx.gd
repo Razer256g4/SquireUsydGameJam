@@ -33,6 +33,17 @@ const MIX_TRIM := -3.0
 # natively, so the loader is format-agnostic — a clip resolves to the first ext present.
 const AUDIO_EXTS: Array[String] = [".ogg", ".mp3", ".wav"]
 const MUSIC_BED_DB := -7.0                  # serving/menu/boss bed level (under the SFX)
+# Per-track level match (dB), applied on top of the bed. The commissioned stems were mastered
+# at different loudness (measured via BS.1770 integrated LUFS): menu -9.4, suspicion3 -12.4,
+# suspicion2 -15.9, serving -16.8. These trims bring them all DOWN to the quietest (serving) so
+# every track sits at ~the same perceived loudness. Trims are NEVER positive — the stems already
+# peak near 0 dBFS, so a boost would clip the master limiter.
+const MUSIC_TRIM := {
+	"menu":       -7.5,
+	"serving":     0.0,   # reference (quietest)
+	"suspicion2": -1.0,
+	"suspicion3": -4.5,
+}
 # Suspicion-reactive serving score: SEPARATE tracks by ASCENDING suspicion band, each
 # {at: threshold 0..1, name}. serving_music(frac) HARD-CUTS to the highest band the meter has
 # reached (and back down, with hysteresis) — no blend between bands. The dread stem
@@ -191,7 +202,7 @@ static func _swap_stream(name: String, volume_db: float) -> void:
 		return                              # already on this track — don't restart
 	stream.set("loop", true)                # harmless no-op for stream types without a loop flag
 	_music.stream = stream
-	_music.volume_db = volume_db
+	_music.volume_db = volume_db + float(MUSIC_TRIM.get(name, 0.0))   # per-track level match
 	_music.play()
 
 ## Pause/resume the MUSIC track in place — the explicit hook for the pause menu. The audio
