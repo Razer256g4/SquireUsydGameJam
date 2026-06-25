@@ -16,3 +16,6 @@ desktop.ini
 
 # Redundant asset archive (the extracted folders are committed instead)
 *.zip
+
+# Local-only running decision log (Claude's working notes; never committed)
+/DECISIONS.md
