@@ -10,6 +10,7 @@ const RADIUS := 32.0
 const SCALE := 5.0
 const SPEED := 150.0
 const BOSS_SPEED := 175.0
+const PICKUP_NOTICE := 340.0   # serving phase: she'll detour for floor loot within this range
 
 # --- cursed-item effects (deliberately WEAK: weakening her is a slow, hard grind) ---
 const CURSE_POISON := 1.0     # poison/sec per cursed potion (was 4 — tick way down)
@@ -76,6 +77,13 @@ const THANKS := [
 const SUSPICIOUS := [
 	"Hm... this tastes odd.", "Are you quite sure about this?",
 	"Something feels... off.", "You seem nervous, squire.",
+]
+# said when she fetches a floor item herself (oblivious — she has no idea you'd
+# have tampered with it). A self-served pickup is always genuine, so it buffs her.
+const SELF_SERVE := [
+	"Ooh, don't mind if I do!", "I'll just help myself, squire.",
+	"A queen wants for nothing.", "Mine now. Royal decree.",
+	"No need to trouble you, dear squire.", "Spoils of war — mostly mine.",
 ]
 
 # base (already OP) stats; grow with level
@@ -197,6 +205,24 @@ func _process(delta: float) -> void:
 func _serving_step(delta: float) -> bool:
 	hp = minf(_eff_max_hp(), hp + regen * regen_mult * delta)
 	var target := _nearest_enemy()
+
+	# Opportunistic looting: unless an enemy is right on top of her, she'll detour to
+	# grab nearby floor supplies herself. Floor loot is always GENUINE, so a potion heals
+	# her and a weapon arms her — for free. Snatch or tamper the loot first, or you're
+	# feeding the boss-to-be. (Combat wins ties; she won't loot mid-melee.)
+	var enemy_close := target != null and global_position.distance_to(target.global_position) <= attack_range
+	if not enemy_close:
+		var loot := _nearest_pickup(PICKUP_NOTICE)
+		if loot != null:
+			var to_l: Vector2 = loot.global_position - global_position
+			_facing = to_l.normalized()
+			if to_l.length() <= RADIUS + loot.radius + 6.0:
+				_grab_pickup(loot)
+				return false
+			position += _facing * SPEED * delta
+			position = Game.clamp_to_arena(position, RADIUS)
+			return true
+
 	if not target:
 		return false
 	_try_abilities(target)
@@ -433,6 +459,32 @@ func _nearest_enemies(k: int) -> Array:
 	arr.sort_custom(func(a, b): return origin.distance_squared_to(a.global_position) < origin.distance_squared_to(b.global_position))
 	return arr.slice(0, k)
 
+# --- floor loot she grabs for herself (serving phase) ---
+func _nearest_pickup(within: float) -> Pickup:
+	var best: Pickup = null
+	var best_d := within * within
+	for n in get_tree().get_nodes_in_group("pickups"):
+		var p := n as Pickup
+		if p == null or p.is_queued_for_deletion():
+			continue
+		var d: float = global_position.distance_squared_to(p.global_position)
+		if d < best_d:
+			best_d = d
+			best = p
+	return best
+
+## Consume a floor pickup directly — always genuine (she'd never tamper with her own
+## supplies), so it heals/arms her. She quips, oblivious that you'd have cursed it.
+func _grab_pickup(p: Pickup) -> void:
+	var kind: String = p.kind
+	p.queue_free()
+	if kind == "potion":
+		receive_genuine_potion(false)
+	else:
+		receive_genuine_weapon(false)
+	if _game and _game.hud:
+		_game.hud.princess_say(SELF_SERVE[randi() % SELF_SERVE.size()])
+
 func _nearest_enemy() -> Monster:
 	var best: Monster = null
 	var best_d := INF
@@ -494,19 +546,21 @@ func _nuke(sq: Squire) -> void:
 	_telegraph_circle(sq.global_position, NUKE_RADIUS, NUKE_DELAY, Color(1.0, 0.4, 0.1), _boss_damage() * NUKE_POWER, true)
 
 # --- gifts from the squire ---
-func receive_genuine_potion() -> void:
+func receive_genuine_potion(thank := true) -> void:
 	hp = minf(_eff_max_hp(), hp + GENUINE_HEAL)
 	Sfx.play("princess_drink")
 	_flash = 0.25
 	_flash_col = Color(0.4, 1.0, 0.5)
-	_say_thanks(false)
+	if thank:                       # squire hand-over thanks him; a self-grab quips instead
+		_say_thanks(false)
 
-func receive_genuine_weapon() -> void:
+func receive_genuine_weapon(thank := true) -> void:
 	power_mult = minf(1.6, power_mult + GENUINE_POWER)
 	Sfx.play("princess_arm")
 	_flash = 0.25
 	_flash_col = Color(1.0, 0.9, 0.4)
-	_say_thanks(false)
+	if thank:
+		_say_thanks(false)
 
 func receive_cursed_potion() -> void:
 	poison_dps = minf(POISON_DPS_CAP, poison_dps + CURSE_POISON)

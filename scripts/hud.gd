@@ -62,6 +62,10 @@ var _sus_pct: Label
 var _sus_legend: Label
 var _boss_banner: Label           # replaces the meter in the boss phase
 var _sus_floor_marker: ColorRect  # tick marking the doubt floor — suspicion can't be calmed below it
+# rotating fourth-wall asides shown under the meter while she's calm/doubtful
+const LEGEND_SWAP := 5.5          # seconds each witty line lingers before the next
+var _legend_t := 0.0              # counts down to the next swap
+var _legend_line := ""            # the line currently shown (picked from Lines.META_LEGEND)
 
 # --- run info (top-left WAVE + SCORE readout) ---
 var _run_info: Label
@@ -323,7 +327,8 @@ func _build_suspicion() -> void:
 	_sus_floor_marker.visible = false
 	_sus_bar.add_child(_sus_floor_marker)
 
-	_sus_legend = _label("how close she is to catching you", 15, Color(1, 1, 1, 0.8))
+	_legend_line = Lines.pick(Lines.META_LEGEND)
+	_sus_legend = _label(_legend_line, 15, Color(1, 1, 1, 0.8))
 	_sus_legend.offset_left = PAD
 	_sus_legend.offset_right = inner_r
 	_sus_legend.offset_top = 66
@@ -801,12 +806,16 @@ func update_state(game: Game) -> void:
 		_sus_floor_marker.anchor_right = floor_ratio
 		_sus_floor_marker.offset_left = -2.0
 		_sus_floor_marker.offset_right = 2.0
-		# legend reframed by stage: it's BOTH her catching you AND your betrayal trigger
+		# legend reframed by stage. While she's still oblivious/doubtful the squire
+		# breaks the fourth wall at you (lines rotate on a timer); once her attacks can
+		# actually catch you it snaps back to a straight, useful danger warning.
+		_legend_t -= get_process_delta_time()
+		if _legend_t <= 0.0:
+			_legend_line = Lines.pick(Lines.META_LEGEND)
+			_legend_t = LEGEND_SWAP
 		match game.suspicion_stage():
-			Game.Stage.OBLIVIOUS:
-				_sus_legend.text = "she trusts you — fill this to betray her"
-			Game.Stage.DOUBT:
-				_sus_legend.text = "SHE'S GETTING SUSPICIOUS"
+			Game.Stage.OBLIVIOUS, Game.Stage.DOUBT:
+				_sus_legend.text = _legend_line
 			Game.Stage.FRIENDLY_FIRE:
 				_sus_legend.text = "DANGER — her attacks can hit you now"
 			_:

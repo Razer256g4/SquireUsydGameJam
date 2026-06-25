@@ -134,6 +134,28 @@ const ACCUSE_PRINCESS := [
 	"One more 'accident' and we'll have words.",
 ]
 
+# --- fourth-wall legend under the SUSPICION meter (the squire narrating his own
+#     UI to you, the player). Rotated by the HUD while she's still oblivious/doubtful;
+#     once her attacks can catch you the meter reverts to a straight danger warning.
+#     Keep each short — one line, centred under the bar. ---------------------------
+const META_LEGEND := [
+	"you're the sidekick. shocking, i know.",
+	"this bar IS the plot. do mind it.",
+	"she got a health orb, i got a meter. rude.",
+	"fill me up — that's the whole gameplay loop.",
+	"she can't read this. that's the joke.",
+	"a Princess Paladin tribute, if you squint.",
+	"WASD to move, treason to win.",
+	"the audience is rooting for me. probably.",
+	"shipped in a game jam — lower the bar (not this one).",
+	"press Q for chaos, do nothing for cowardice.",
+	"yes, the villain narrates his own HUD.",
+	"don't trust the protagonist. it's me.",
+	"the real final boss was the betrayal all along.",
+	"every pixel of her trust, lovingly wasted.",
+	"you paid attention to the meter. she didn't.",
+]
+
 # --- the Angel of Retribution (divine punishment for serial sabotage) --------
 const ANGEL_SQUIRE := [
 	"I can explain. (I cannot.)",
