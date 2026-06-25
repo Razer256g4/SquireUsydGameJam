@@ -82,8 +82,16 @@ func _run(kind: String) -> void:
 
 # --- events ----------------------------------------------------------------
 func _ev_plane() -> void:
-	var center: Vector2 = _game._random_inner_point()
 	var radius := 150.0
+	# Aim the crash at the Princess's position the moment the scheme fires — she's the
+	# target. The telegraph still gives PLANE_DELAY to clear the blast circle, so a
+	# moving Princess can dodge it (and you must mind it too).
+	var center: Vector2
+	var pr := _game.princess
+	if pr and is_instance_valid(pr):
+		center = Game.clamp_to_arena(pr.global_position, radius)
+	else:
+		center = _game._random_inner_point()
 	if _game.hud:
 		_game.hud.announce("INCOMING!")
 		_game.hud.squire_say(Lines.pick(Lines.PLANE_SQUIRE))

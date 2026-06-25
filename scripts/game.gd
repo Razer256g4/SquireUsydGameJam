@@ -16,6 +16,9 @@ class_name Game
 ## initial/fallback. Everything (HUD, spawns, clamps, scenery, floor) derives from it.
 static var arena := Vector2(1600, 900)
 const WALL_MARGIN := 28.0
+# Loaded by path (not the `IntroScreen` global) so it resolves even before the editor
+# has registered the new class — avoids a "class not declared" parse error on first run.
+const INTRO_SCREEN = preload("res://scripts/intro.gd")
 
 # --- pacing / difficulty tuning ---
 const FIRST_INTERMISSION := 3.5
@@ -91,6 +94,10 @@ func _ready() -> void:
 	add_child(event_director)
 
 	add_child(PauseMenu.new())
+
+	# Start-of-run briefing (premise + controls), shown once per session.
+	if not INTRO_SCREEN.seen:
+		add_child(INTRO_SCREEN.new())
 
 	# Camera centred on the arena keeps the exact current framing (arena == viewport),
 	# and lets screen-shake jitter the view via its offset without moving any node.
