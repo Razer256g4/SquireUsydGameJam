@@ -187,14 +187,31 @@ func _wave_banter() -> void:
 func _betray() -> void:
 	phase = "boss"
 	princess.become_boss()
-	# Every surviving monster defects to your side...
+	var wolf_count := 0
+	var banshee_count := 0
 	for m in get_tree().get_nodes_in_group("monsters"):
-		(m as Monster).defect()
-	# ...and reinforcements storm in to help bring her down.
+		var mon := m as Monster
+		if mon.kind == "werewolf": wolf_count += 1
+		elif mon.kind == "banshee": banshee_count += 1
+		mon.defect()
 	for _i in BOSS_ALLY_BONUS:
 		var m := _spawn_enemy()
 		m.defect()
 	hud.betray()
+	_queue_betrayal_narration(wolf_count, banshee_count)
+
+func _queue_betrayal_narration(wolves: int, banshees: int) -> void:
+	await get_tree().create_timer(3.5).timeout
+	if not is_instance_valid(hud):
+		return
+	if wolves > 0 and banshees > 0:
+		hud.announce("Your wolves smell her blood. The banshees wail for you now.")
+	elif wolves > 0:
+		hud.announce("Your wolves smell her blood.")
+	elif banshees > 0:
+		hud.announce("The banshees wail for you now.")
+	else:
+		hud.announce("Your monsters turn. The princess bleeds.")
 
 func _boss_process(delta: float) -> void:
 	if not is_instance_valid(princess) or princess.hp <= 0.0:
@@ -229,9 +246,9 @@ func sabotage_suspicion() -> void:
 	suspicion = clampf(suspicion + SUS_BASE * pow(SUS_GROWTH, cursed_streak), 0.0, SUSPICION_MAX)
 	cursed_streak += 1
 
-## A genuine gift fully allays her suspicion and resets the streak.
+## A genuine gift reduces suspicion but can't fully erase it late-game.
 func help_resets_suspicion() -> void:
-	suspicion = 0.0
+	suspicion = maxf(suspicion * 0.3, minf(wave * 5.0, 35.0))
 	cursed_streak = 0
 
 func on_monster_killed(m: Monster) -> void:

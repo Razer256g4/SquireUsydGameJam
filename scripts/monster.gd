@@ -32,6 +32,7 @@ var enraged := false
 var _cd := 0.0
 var _flash := 0.0
 var _anim_lock := 0.0
+var _lunge_timer := 0.0      # werewolf: burst speed after each attack
 var _dead := false
 var _overlay_y := 0.0
 var _game: Game
@@ -146,6 +147,7 @@ func _process(delta: float) -> void:
 	_cd = _decay(_cd, delta)
 	_flash = _decay(_flash, delta)
 	_anim_lock = _decay(_anim_lock, delta)
+	_lunge_timer = _decay(_lunge_timer, delta)
 	_tick_pop(delta)
 	if _spr:
 		_spr.modulate = Color.WHITE if _flash > 0.0 else _base_tint()
@@ -158,7 +160,8 @@ func _process(delta: float) -> void:
 		_facing = to_t / maxf(dist, 0.001)
 		var reach: float = radius + _target_radius(target) + 2.0
 		if dist > reach:
-			position += _facing * speed * delta
+			var cur_speed := speed * (2.5 if kind == "werewolf" and _lunge_timer > 0.0 else 1.0)
+			position += _facing * cur_speed * delta
 			position += _separation() * delta
 			position = Game.clamp_to_arena(position, radius)
 			moved = true
@@ -167,6 +170,8 @@ func _process(delta: float) -> void:
 			_cd = attack_cd
 			_play("attack")
 			_anim_lock = 0.35
+			if kind == "werewolf":
+				_lunge_timer = 0.45
 
 	_update_flip()
 	if _anim_lock <= 0.0:
@@ -232,9 +237,19 @@ func enrage() -> void:
 ## Switch sides at the betrayal: now fight FOR the squire, against the Princess.
 func defect() -> void:
 	faction = "ally"
-	tint = ALLY_TINT
+	match kind:
+		"werewolf":
+			tint = Color(1.0, 0.6, 0.2)   # feral orange — pack goes feral
+			enraged = true
+			speed *= 1.4
+			damage *= 1.5
+		"banshee":
+			tint = Color(0.3, 1.0, 0.85)   # cold cyan — wail now for the princess
+			attack_cd *= 0.75
+		_:
+			tint = ALLY_TINT
 	if _spr:
-		_spr.modulate = ALLY_TINT
+		_spr.modulate = tint
 
 ## Put this monster on a non-default faction (used by event spawns). Re-tints it.
 func set_faction(f: String) -> void:
@@ -263,6 +278,8 @@ func _die() -> void:
 	if _game:
 		_game.on_monster_killed(self)
 		Fx.sparks(_game, global_position, _base_tint(), 14, 110.0, 0.5)
+	if kind == "banshee":
+		_banshee_death_wail()
 	if _spr:
 		_spr.modulate = _base_tint()
 		_play("death")
@@ -270,6 +287,18 @@ func _die() -> void:
 	await get_tree().create_timer(0.45).timeout
 	if is_instance_valid(self):
 		queue_free()
+
+func _banshee_death_wail() -> void:
+	const WAIL_RADIUS := 110.0
+	const WAIL_DMG    := 6.0
+	if _game:
+		Fx.sparks(_game, global_position, Color(0.6, 0.9, 1.0), 22, WAIL_RADIUS, 0.7)
+	var princess := get_tree().get_first_node_in_group("princess") as Actor
+	var squire   := get_tree().get_first_node_in_group("squire")   as Actor
+	for target in [princess, squire]:
+		if target and is_instance_valid(target) \
+				and global_position.distance_to(target.global_position) <= WAIL_RADIUS:
+			target.take_damage(WAIL_DMG)
 
 func _base_tint() -> Color:
 	return ENRAGED_TINT if enraged else tint
