@@ -33,6 +33,7 @@ static var _last := {}                      # key -> Time.get_ticks_msec() of la
 static var _lib := {}                       # key -> Array[AudioStream]
 static var _cfg := {}                       # key -> {"vol": dB, "gap": ms}
 static var _booted := false
+static var _unlocked := false               # web autoplay gate: music held until the first user gesture
 
 # --- lazy boot (no autoload) -----------------------------------------------
 static func _boot() -> void:
@@ -75,6 +76,16 @@ static func _start_pending_music() -> void:
 		_pending_music = ""
 		play_music(n)
 
+## First real user gesture (e.g. dismissing the intro). On web the browser keeps the
+## AudioContext suspended until the player interacts, so a track started at page-load
+## (Game._ready -> play_music) would stay silent; we hold the opening music until here,
+## then release it so the loop begins fresh against a live context. No-op on desktop.
+static func unlock() -> void:
+	if _unlocked:
+		return
+	_unlocked = true
+	_start_pending_music()
+
 # --- SFX --------------------------------------------------------------------
 ## Fire a sound. `key` is a logical event name. Base gain + throttle come from the
 ## per-key mix config; `volume_db` is an optional extra trim, `pitch_var` the ±
@@ -110,8 +121,8 @@ static func play_music(name: String, volume_db := -7.0) -> void:
 	_boot()
 	if _music == null:
 		return
-	if not _music.is_inside_tree():
-		_pending_music = name               # holder attaches deferred; _start_pending_music() retries
+	if not _music.is_inside_tree() or (OS.has_feature("web") and not _unlocked):
+		_pending_music = name               # holder deferred, or web audio still locked; unlock()/_start_pending_music() retries
 		return
 	var path := "%s%s.ogg" % [MUSIC_DIR, name]
 	if not ResourceLoader.exists(path):
