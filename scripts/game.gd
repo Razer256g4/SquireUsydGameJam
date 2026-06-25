@@ -238,7 +238,7 @@ func _wave_banter() -> void:
 func _betray() -> void:
 	phase = "boss"
 	Sfx.play("betray_sting")                # deep WHOOM under her "TRAITOR!" roar (level in mix config)
-	Sfx.play_music("boss")                  # swap to assets/audio/music/boss.ogg if present
+	Sfx.play_music("suspicion3")            # "she knows" — the dread/final track scores the boss fight
 	princess.become_boss()
 	# Every surviving monster defects to your side...
 	for m in get_tree().get_nodes_in_group("monsters"):

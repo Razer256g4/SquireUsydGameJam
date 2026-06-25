@@ -2,16 +2,16 @@ Background music goes here. Tracks are loaded by name (the loader accepts .ogg/.
 first match wins -- see scripts/sfx.gd -> _find / play_music / serving_music):
 
   menu.mp3        - intro / controls briefing (crossfades into serving when you start)
-  serving.mp3     - calm serving bed; suspicion 0-40%      (commissioned "suspicion0-33")
-  suspicion2.mp3  - tension layer; crossfades in at 40%+   (commissioned "level 2")
-  suspicion3.mp3  - dread layer; crossfades in at 85%+     (commissioned "level 3 / final")
-  boss.ogg        - once the Princess turns on you (boss phase)   [still a placeholder]
+  serving.mp3     - calm serving bed; suspicion 0-50%      (commissioned "suspicion0-33")
+  suspicion2.mp3  - tension layer; crossfades in at 50%+   (commissioned "level 2")
+  suspicion3.mp3  - dread/final track; plays once she betrays you  (commissioned "level 3 / final")
+  boss.ogg        - old boss placeholder [no longer used -- suspicion3 scores the boss fight now]
 
 SUSPICION-REACTIVE SCORE: during the serving phase the music crossfades up through the
-SERVING_BANDS table in sfx.gd as the suspicion meter climbs (calm -> tension -> dread), and
-back down with hysteresis if you regain her trust. Dread lands at 85% (not 100%) because at
-100% she betrays you and the music hard-cuts to the boss track. Tweak the thresholds/add a
-band by editing SERVING_BANDS ({"at": <frac>, "name": "<file>"}).
+SERVING_BANDS table in sfx.gd as the suspicion meter climbs (calm -> tension at 50%), and
+back down with hysteresis if you regain her trust. When suspicion hits 100% she betrays you
+("she knows") and _betray() in game.gd hard-cuts to suspicion3 (the dread/final track) for
+the boss fight. Tweak the thresholds/add a band by editing SERVING_BANDS.
 
 Drop a file with the right name into this folder and it starts working automatically --
 no code changes needed. A missing track is simply silent (no errors).

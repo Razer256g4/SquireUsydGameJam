@@ -35,14 +35,13 @@ const AUDIO_EXTS: Array[String] = [".ogg", ".mp3", ".wav"]
 const MUSIC_BED_DB := -7.0                  # serving/menu/boss bed level (under the SFX)
 # Suspicion-reactive serving score: tracks by ASCENDING suspicion band, each
 # {at: threshold 0..1, name}. serving_music(frac) crossfades up to the highest band the
-# meter has reached (and back down, with hysteresis), so the music sours calm -> tension
-# -> dread as she closes in. A quick dip-and-swap on one player (robust whether or not the
-# stems are sample-aligned), not a sustained simultaneous layer mix.
+# meter has reached (and back down, with hysteresis), so the music sours calm -> tension as
+# she closes in. A quick dip-and-swap on one player (robust whether or not the stems are
+# sample-aligned), not a sustained simultaneous layer mix. The dread stem (suspicion3) is NOT
+# a serving band — it's the boss track once she knows (see _betray() in game.gd).
 const SERVING_BANDS := [
 	{"at": 0.0,  "name": "serving"},        # calm bed (commissioned "suspicion0-33")
-	{"at": 0.40, "name": "suspicion2"},     # tension — once she starts to doubt (~40%)
-	{"at": 0.85, "name": "suspicion3"},     # dread — final approach (betrayal hard-cuts to boss AT 100%,
-											#         so dread comes in at 85% to actually be heard)
+	{"at": 0.50, "name": "suspicion2"},     # tension — once she starts to doubt (50%+)
 ]
 
 static var _players: Array[AudioStreamPlayer] = []
