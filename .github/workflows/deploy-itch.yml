@@ -1,0 +1,58 @@
+name: Deploy to itch.io
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:        # lets you also trigger a build from the Actions tab
+
+env:
+  GODOT_VERSION: "4.7"      # matches Help -> About: 4.7.stable.official
+  GODOT_RELEASE: "stable"
+  EXPORT_PRESET: "Web"      # must match the preset name in export_presets.cfg
+  ITCH_USER: "razer256g5"   # itch username (from https://razer256g5.itch.io/sqire)
+  ITCH_GAME: "sqire"        # project URL slug
+  ITCH_CHANNEL: "html5"
+
+jobs:
+  deploy-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with Git LFS)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Download Godot + export templates
+        run: |
+          set -e
+          BASE="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-${GODOT_RELEASE}"
+          curl -L -o godot.zip      "${BASE}/Godot_v${GODOT_VERSION}-${GODOT_RELEASE}_linux.x86_64.zip"
+          curl -L -o templates.tpz  "${BASE}/Godot_v${GODOT_VERSION}-${GODOT_RELEASE}_export_templates.tpz"
+          unzip -o godot.zip
+          sudo mv "Godot_v${GODOT_VERSION}-${GODOT_RELEASE}_linux.x86_64" /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_RELEASE}"
+          unzip -o templates.tpz
+          mv templates/* "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_RELEASE}/"
+
+      - name: Import assets
+        run: |
+          mkdir -p build/web
+          godot --headless --path . --import || true   # first import pass; non-zero exit is OK
+
+      - name: Export Web build
+        run: |
+          godot --headless --path . --export-release "${EXPORT_PRESET}" build/web/index.html
+          ls -la build/web   # sanity check: should contain index.html, .wasm, .js, .pck
+
+      - name: Install butler
+        run: |
+          curl -L -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          unzip butler.zip
+          chmod +x butler
+          ./butler -V
+
+      - name: Push to itch.io
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: ./butler push build/web "${ITCH_USER}/${ITCH_GAME}:${ITCH_CHANNEL}"

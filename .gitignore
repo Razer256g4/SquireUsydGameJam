@@ -3,8 +3,11 @@
 /android/
 
 # Godot exports
-export_presets.cfg
+# NOTE: export_presets.cfg is intentionally tracked so CI can build the Web export.
 *.import.bak
+
+# Web build output (generated locally / by CI)
+build/
 
 # OS / editor junk
 .DS_Store
