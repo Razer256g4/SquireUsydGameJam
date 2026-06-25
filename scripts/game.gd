@@ -119,7 +119,10 @@ func _ready() -> void:
 
 	# Story cutscene (the amulet + the betrayal) THEN the controls briefing, both shown
 	# once per session. The cutscene marks INTRO_SCREEN.seen so a quick R won't replay it.
-	if not INTRO_SCREEN.seen:
+	# Capture the fresh-run state NOW, BEFORE the cutscene's _ready flips `seen` to true —
+	# otherwise the music check below always reads `seen` and never plays the menu theme.
+	var fresh_run := not INTRO_SCREEN.seen
+	if fresh_run:
 		var opening := CUTSCENE.opening()
 		opening.finished.connect(_show_intro)
 		add_child(opening)
@@ -137,10 +140,10 @@ func _ready() -> void:
 	# A fresh run shows those, so play the menu theme; IntroScreen._dismiss hands off to the
 	# calm track the instant the arena begins. An R-restart skips the cutscene/briefing (intro
 	# already `seen`) and drops straight into the arena, so start the calm track immediately.
-	if INTRO_SCREEN.seen:
-		Sfx.serving_music(0.0)       # restart: the arena begins now -> calm
-	else:
+	if fresh_run:
 		Sfx.play_music("menu")       # fresh: menu theme over the cutscene + briefing
+	else:
+		Sfx.serving_music(0.0)       # restart: the arena begins now -> calm
 	queue_redraw()
 
 ## Hand off from the opening story cutscene to the controls briefing (both stay paused).

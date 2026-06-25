@@ -143,6 +143,7 @@ func _toggle() -> void:
 	if visible:
 		_populate()               # re-sync widgets with the live Settings on open
 	get_tree().paused = visible
+	Sfx.set_music_paused(visible) # pause the score while the menu is up; SFX pool stays live for UI clicks
 
 func _restart() -> void:
 	get_tree().paused = false

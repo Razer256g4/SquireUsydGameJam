@@ -144,6 +144,7 @@ static func play_music(name: String, volume_db := MUSIC_BED_DB) -> void:
 	_boot()
 	if _music == null:
 		return
+	_music.stream_paused = false            # any music command clears a stuck pause, even if we early-out below
 	if not _music.is_inside_tree():
 		_pending_music = name               # holder attaches deferred; _start_pending_music() retries
 		return
@@ -155,7 +156,10 @@ static func play_music(name: String, volume_db := MUSIC_BED_DB) -> void:
 ## flap on the boundary. The bands are SEPARATE tracks — no blending between them.
 static func serving_music(frac: float) -> void:
 	_boot()
-	if _music == null or not _music.is_inside_tree():
+	if _music == null:
+		return
+	_music.stream_paused = false            # serving is always audible; clears any stuck pause from the menu
+	if not _music.is_inside_tree():
 		return                              # not attached yet — the raw play_music start handles frame 1
 	var cur := maxi(0, _serving_band)
 	var target := cur
@@ -182,6 +186,7 @@ static func _swap_stream(name: String, volume_db: float) -> void:
 	if stream == null:
 		return
 	_music_name = name
+	_music.stream_paused = false            # any explicit music command clears a prior pause (e.g. restart from the pause menu)
 	if _music.stream == stream and _music.playing:
 		return                              # already on this track — don't restart
 	stream.set("loop", true)                # harmless no-op for stream types without a loop flag
@@ -189,10 +194,19 @@ static func _swap_stream(name: String, volume_db: float) -> void:
 	_music.volume_db = volume_db
 	_music.play()
 
+## Pause/resume the MUSIC track in place — the explicit hook for the pause menu. The audio
+## bank is PROCESS_MODE_ALWAYS (so the cutscene/briefing keep their music and UI clicks sound),
+## which means a paused tree alone no longer silences music; the pause menu calls this so
+## "pause the game" still pauses the score, while the SFX pool stays live for menu clicks.
+static func set_music_paused(paused: bool) -> void:
+	if _music:
+		_music.stream_paused = paused
+
 static func stop_music() -> void:
 	_serving_band = -1
 	_music_name = ""
 	if _music:
+		_music.stream_paused = false
 		_music.stop()
 
 # --- volumes (driven by the pause-menu sliders) ----------------------------
