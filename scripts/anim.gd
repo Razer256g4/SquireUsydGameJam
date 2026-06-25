@@ -38,6 +38,22 @@ static func orc() -> SpriteFrames:
 	_cache["orc"] = sf
 	return sf
 
+static func vampire() -> SpriteFrames:
+	if _cache.has("vampire"):
+		return _cache["vampire"]
+	var b    := "res://sprites/vampire/processed/"
+	var idle := b + "Vampire-Idle.png"
+	var sf := _build([
+		{"name": "idle",    "path": idle,                   "frames": 6, "fps": 8.0,  "loop": true,  "fw": 362},
+		{"name": "walk",    "path": idle,                   "frames": 6, "fps": 10.0, "loop": true,  "fw": 362},
+		{"name": "attack",  "path": b + "Vampire-Lunge.png",   "frames": 5, "fps": 14.0, "loop": false, "fw": 396},
+		{"name": "special", "path": b + "Vampire-Special.png", "frames": 8, "fps": 12.0, "loop": false, "fw": 222},
+		{"name": "hurt",    "path": idle,                   "frames": 2, "fps": 10.0, "loop": false, "fw": 362},
+		{"name": "death",   "path": b + "Vampire-Portrait.png","frames": 1, "fps": 4.0,  "loop": false, "fw": 1254},
+	])
+	_cache["vampire"] = sf
+	return sf
+
 static func arrow_texture() -> Texture2D:
 	return load(RPG + "Arrow(Projectile)/Arrow01(100x100).png") as Texture2D
 

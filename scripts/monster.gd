@@ -68,9 +68,9 @@ func configure(wave: int) -> void:
 			max_hp = 95.0; speed = 42.0; damage = 18.0; attack_cd = 1.3
 			radius = 46.0; scale_f = 5.8; tint = Color(1.0, 0.6, 0.55); prefers_squire = false
 			score_value = 30; drop_chance = 0.45
-		"vampire":   # gothic elite (full-colour sheet): tanky, fast, hits hard
+		"vampire":   # gothic elite: tanky, fast, cape-flowing idle, lunge attack
 			max_hp = 70.0; speed = 92.0; damage = 13.0; attack_cd = 0.9
-			radius = 28.0; scale_f = 3.0; tint = Color.WHITE; prefers_squire = false
+			radius = 28.0; scale_f = 0.12; tint = Color.WHITE; prefers_squire = false
 			score_value = 26; drop_chance = 0.38
 		"banshee":   # wave 3+ spectral screamer: fast, ethereal, terrifying wail
 			max_hp = 60.0; speed = 110.0; damage = 14.0; attack_cd = 1.3
@@ -123,6 +123,8 @@ func configure(wave: int) -> void:
 	if kind == "werewolf":
 		_overlay_y = -(scale_f * 768.0 * 0.50) - 8.0
 	elif kind == "banshee":
+		_overlay_y = -(scale_f * 724.0 * 0.45) - 8.0
+	elif kind == "vampire":
 		_overlay_y = -(scale_f * 724.0 * 0.45) - 8.0
 	else:
 		_overlay_y = overlay_y(10.0 if kind == "vampire" else (39.0 if human else 42.0), scale_f)
