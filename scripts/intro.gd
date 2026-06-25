@@ -169,6 +169,5 @@ func _dismiss() -> void:
 	if _pause_menu:
 		_pause_menu.process_mode = Node.PROCESS_MODE_ALWAYS
 	get_tree().paused = false
-	Sfx.unlock()                # first in-canvas gesture: release web audio + start the held music
 	Sfx.play("ui_click")
 	queue_free()

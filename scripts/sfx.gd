@@ -33,7 +33,8 @@ static var _last := {}                      # key -> Time.get_ticks_msec() of la
 static var _lib := {}                       # key -> Array[AudioStream]
 static var _cfg := {}                       # key -> {"vol": dB, "gap": ms}
 static var _booted := false
-static var _unlocked := false               # web autoplay gate: music held until the first user gesture
+const DEBUG_AUDIO := true                    # TEMP: confirm web music/SFX playback in the browser console
+static var _logged_first_sfx := false
 
 # --- lazy boot (no autoload) -----------------------------------------------
 static func _boot() -> void:
@@ -76,14 +77,10 @@ static func _start_pending_music() -> void:
 		_pending_music = ""
 		play_music(n)
 
-## First real user gesture (e.g. dismissing the intro). On web the browser keeps the
-## AudioContext suspended until the player interacts, so a track started at page-load
-## (Game._ready -> play_music) would stay silent; we hold the opening music until here,
-## then release it so the loop begins fresh against a live context. No-op on desktop.
+## Stable hook the intro / cutscene call on the first user interaction. The web
+## AudioContext is already live from boot in our itch embed (music is no longer gated
+## behind it), so this just kicks any track still pending the holder's tree-attach.
 static func unlock() -> void:
-	if _unlocked:
-		return
-	_unlocked = true
 	_start_pending_music()
 
 # --- SFX --------------------------------------------------------------------
@@ -114,6 +111,9 @@ static func play(key: String, pitch_var := 0.06, volume_db := 0.0) -> void:
 	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
 	p.volume_db = float(cfg.get("vol", 0.0)) + volume_db
 	p.play()
+	if DEBUG_AUDIO and not _logged_first_sfx:
+		_logged_first_sfx = true
+		print("[SFX] first SFX '%s' play(): playing=%s vol_db=%.1f" % [key, str(p.playing), p.volume_db])
 
 # --- music ------------------------------------------------------------------
 ## Loop a background track from assets/audio/music/<name>.ogg as a quiet bed.
@@ -121,8 +121,8 @@ static func play_music(name: String, volume_db := -7.0) -> void:
 	_boot()
 	if _music == null:
 		return
-	if not _music.is_inside_tree() or (OS.has_feature("web") and not _unlocked):
-		_pending_music = name               # holder deferred, or web audio still locked; unlock()/_start_pending_music() retries
+	if not _music.is_inside_tree():
+		_pending_music = name               # holder attaches deferred; _start_pending_music() retries
 		return
 	var path := "%s%s.ogg" % [MUSIC_DIR, name]
 	if not ResourceLoader.exists(path):
@@ -136,6 +136,9 @@ static func play_music(name: String, volume_db := -7.0) -> void:
 	_music.stream = stream
 	_music.volume_db = volume_db
 	_music.play()
+	if DEBUG_AUDIO:
+		print("[SFX] music '%s' play(): in_tree=%s playing=%s vol_db=%.1f bus=%s" % [
+			name, str(_music.is_inside_tree()), str(_music.playing), _music.volume_db, _music.bus])
 
 static func stop_music() -> void:
 	if _music:
