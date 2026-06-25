@@ -36,6 +36,9 @@ const BANNER_SM := DIR + "banners/BannerSmall_01A.png"
 const SLOT := DIR + "slots/Slot_01_Empty.png"
 const SLOT_POTION := DIR + "slots/Slot_01_Potion.png"
 const SLOT_WEAPON := DIR + "slots/Slot_01_Weapon.png"
+# tampered variants (poisoned potion / cursed sword) — distinct art, not just a tint
+const SLOT_POTION_CURSED := DIR + "slots/Slot_01_Potion_Cursed.png"
+const SLOT_WEAPON_CURSED := DIR + "slots/Slot_01_Weapon_Cursed.png"
 
 # --- liquid orb gauges (144x144). ORB_EMPTY is the dark socket+ring under-layer;
 #     each bare liquid sphere is the fill (a full orb = ORB_EMPTY + its liquid, which
@@ -47,7 +50,7 @@ const ORB_MP := DIR + "orbs/Orb_MP.png"          # blue liquid (stamina)
 const ORB_ENERGY := DIR + "orbs/Orb_Energy.png"  # gold liquid
 
 # --- mini icons (see contact sheet: 03 heart, 04 empty heart, 06 skull,
-#     07 alert, 09 sword, 11 boot, 13 wand, 17 flask) ---
+#     07 alert, 09 sword, 11 boot, 13 wand, 17 voodoo doll) ---
 const IC_HEART := DIR + "icons/Icon_03.png"
 const IC_HEART_EMPTY := DIR + "icons/Icon_04.png"
 const IC_SKULL := DIR + "icons/Icon_06.png"
@@ -55,7 +58,7 @@ const IC_ALERT := DIR + "icons/Icon_07.png"
 const IC_SWORD := DIR + "icons/Icon_09.png"
 const IC_BOOT := DIR + "icons/Icon_11.png"
 const IC_WAND := DIR + "icons/Icon_13.png"
-const IC_FLASK := DIR + "icons/Icon_17.png"
+const IC_VOODOO := DIR + "icons/Icon_17.png"   # tamper = a pin-stuck voodoo doll
 const IC_CROWN := DIR + "icons/Icon_05.png"
 
 # --- buttons (each has _Normal/_Pressed/_Selected) ---

@@ -102,6 +102,8 @@ var _end_restart: Label
 var _slot_empty: Texture2D
 var _slot_potion: Texture2D
 var _slot_weapon: Texture2D
+var _slot_potion_cursed: Texture2D     # null until the new PNG is imported → tint fallback
+var _slot_weapon_cursed: Texture2D
 
 func _ready() -> void:
 	layer = 10
@@ -112,6 +114,8 @@ func _ready() -> void:
 	_slot_empty = UiKit.tex(UiKit.SLOT)
 	_slot_potion = UiKit.tex(UiKit.SLOT_POTION)
 	_slot_weapon = UiKit.tex(UiKit.SLOT_WEAPON)
+	_slot_potion_cursed = UiKit.tex(UiKit.SLOT_POTION_CURSED)
+	_slot_weapon_cursed = UiKit.tex(UiKit.SLOT_WEAPON_CURSED)
 
 	_root = Control.new()
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -858,12 +862,20 @@ func update_state(game: Game) -> void:
 			_carry_slot.texture = _slot_empty
 			_carry_slot.modulate = Color(1, 1, 1, 0.55)
 		else:
-			# item name fits the compartment; cursed/genuine is shown by colour (and the
-			# slot's purple tint), so the long "[CURSED]" word no longer overflows the tray.
+			# item name fits the compartment; genuine vs tampered reads from the ICON itself
+			# (red+cross heal potion vs purple+skull poison; steel sword vs cursed green blade),
+			# reinforced by the caption colour.
 			_carry_label.text = sq.carry.to_upper()
 			_carry_label.add_theme_color_override("font_color", Color(0.85, 0.4, 1.0) if sq.cursed else Color(0.7, 1.0, 0.7))
-			_carry_slot.texture = _slot_potion if sq.carry == "potion" else _slot_weapon
-			_carry_slot.modulate = Color(0.9, 0.55, 1.0) if sq.cursed else Color(1, 1, 1, 1)
+			var clean: Texture2D = _slot_potion if sq.carry == "potion" else _slot_weapon
+			var tampered: Texture2D = _slot_potion_cursed if sq.carry == "potion" else _slot_weapon_cursed
+			if sq.cursed and tampered:
+				_carry_slot.texture = tampered
+				_carry_slot.modulate = Color(1, 1, 1, 1)
+			else:
+				# distinct tampered art unavailable (not yet imported) → fall back to the old purple tint
+				_carry_slot.texture = clean
+				_carry_slot.modulate = Color(0.9, 0.55, 1.0) if sq.cursed else Color(1, 1, 1, 1)
 
 		# ability bar
 		var ev := game.event_director

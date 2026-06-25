@@ -82,7 +82,7 @@ func _build() -> void:
 	_ctrl(controls, "", "Move", "WASD / Arrows")
 	_ctrl(controls, UiKit.IC_BOOT, "Dash", "Space")
 	_ctrl(controls, "", "Give", "bump the Princess")
-	_ctrl(controls, UiKit.IC_FLASK, "Tamper", "Ctrl")
+	_ctrl(controls, UiKit.IC_VOODOO, "Tamper", "Ctrl")
 	_ctrl(controls, UiKit.IC_ALERT, "Tip off", "E")
 	_ctrl(controls, UiKit.IC_WAND, "Scheme", "Q")
 	_ctrl(controls, "", "Pause", "Esc")
