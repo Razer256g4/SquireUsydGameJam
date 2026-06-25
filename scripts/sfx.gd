@@ -28,6 +28,25 @@ const MASTER_CEILING_DB := -1.0             # limiter ceiling so the mix never c
 # whole SFX layer ran too loud — this pulls it down uniformly (the per-key BALANCE below is
 # preserved; this is the one knob for "all SFX too loud").
 const MIX_TRIM := -3.0
+# Per-CLIP gain (dB) to level the variants WITHIN a key: the commissioned variants were
+# mastered up to ~6 dB apart, so a key would randomly jump in loudness as play() picks a
+# variant. Measured each clip (BS.1770-ish window loudness) and normalized every variant to
+# its key's median, peak-clamped so the result never exceeds the -1 dB master ceiling.
+# Clips not listed need no correction (single-clip keys, or already on the median).
+const CLIP_GAIN := {
+	"betray_roar": -1.4, "betray_roar2": 1.4,
+	"cast_3": 1.0, "cast_4": -0.3,
+	"dash_1": -1.7, "dash_2": 4.9,
+	"enemydie_1": 3.5, "enemydie_2": -0.4, "enemydie_5": -0.5,
+	"enemyhurt_1": 0.5,
+	"enemyswing_1": -2.1, "enemyswing_2": -1.8, "enemyswing_3": 3.8, "enemyswing_4": 1.8,
+	"explosion_1": -2.3, "explosion_2": 0.5,
+	"playerdeath_2": 1.9, "playerdeath_4": -2.2, "playerdeath_5": -4.0,
+	"princessdeath_2": 2.1, "princessdeath_3": -1.8, "princessdeath_4": 0.6, "princessdeath_5": -4.2,
+	"squirehurt_1": -0.5, "squirehurt_3": 0.7, "squirehurt_4": 2.6,
+	"swing_1": -2.1, "swing_2": -2.5, "swing_3": 2.9, "swing_4": 2.1,
+	"zap_1": 0.8, "zap_2": -1.5, "zap_3": 0.6, "zap_5": -0.9,
+}
 # Accepted source formats, in preference order. The commissioned originals ship as .mp3
 # (web-friendly size); the remaining CC0 placeholders are .ogg. Godot imports all three
 # natively, so the loader is format-agnostic — a clip resolves to the first ext present.
@@ -142,9 +161,10 @@ static func play(key: String, pitch_var := 0.06, volume_db := 0.0) -> void:
 	_last[key] = now
 	var p := _players[_next]
 	_next = (_next + 1) % _players.size()
-	p.stream = clips[randi() % clips.size()] as AudioStream
+	var clip: Dictionary = clips[randi() % clips.size()]
+	p.stream = clip["s"] as AudioStream
 	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
-	p.volume_db = float(cfg.get("vol", 0.0)) + volume_db + MIX_TRIM
+	p.volume_db = float(cfg.get("vol", 0.0)) + volume_db + MIX_TRIM + float(clip["g"])
 	p.play()
 
 # --- music ------------------------------------------------------------------
@@ -302,51 +322,54 @@ static func _build_library() -> void:
 		"ui_toggle":      _pack("orig/ui_toggle",      ["ui_toggle"]),
 	}
 
-## Per-key MIX: base gain (dB, negative = quieter) + min retrigger gap (ms).
-## Rule of thumb: the more often a sound fires, the quieter and more throttled it is;
-## rare punctuation sits loudest. Unlisted keys default to {vol 0, gap DEFAULT_GAP}.
+## Per-key MIX: base gain (dB) + min retrigger gap (ms). The `vol` values are
+## MEASUREMENT-DERIVED, not guessed: each key's clips were loudness-measured and these trims
+## land every key at a target FINAL loudness — foreground events/punctuation ≈ -23 dB,
+## constant combat chatter + UI ≈ -28 dB (subordinate) — for a consistent, predictable mix
+## (~5 dB spread, was ~17). Within-key variant differences are handled by CLIP_GAIN. The `gap`
+## throttles (unchanged) collapse bursts to one voice. Unlisted keys default to {0, DEFAULT_GAP}.
 static func _build_config() -> void:
 	_cfg = {
-		# constant combat chatter — pushed down, throttled so hordes don't machine-gun
-		"swing":          {"vol": -9.0,  "gap": 55},
-		"enemy_swing":    {"vol": -13.0, "gap": 90},
-		"enemy_hurt":     {"vol": -11.0, "gap": 60},
-		"enemy_die":      {"vol": -8.0,  "gap": 70},
-		"player_hurt":    {"vol": -7.0,  "gap": 110},
-		"player_die":     {"vol": -9.0,  "gap": 200},
-		"princess_fall":  {"vol": -8.0,  "gap": 400},   # one-shot; her fall is THE big reverent moment
-		"boom":           {"vol": -9.0,  "gap": 90},
-		"zap":            {"vol": -12.0, "gap": 75},
-		"cast":           {"vol": -16.0, "gap": 110},
-		"trap_hit":       {"vol": -12.0, "gap": 90},
-		# squire actions / gifts — player-driven, moderate
-		"dash":           {"vol": -11.0, "gap": 90},
-		"pickup":         {"vol": -7.0,  "gap": 60},
-		"princess_drink": {"vol": -6.0,  "gap": 80},
-		"princess_arm":   {"vol": -6.0,  "gap": 80},
-		"gift_curse":     {"vol": -8.0,  "gap": 90},
-		"tipoff":         {"vol": -7.0,  "gap": 150},
+		# constant combat chatter — subordinate tier (~-28 dB), throttled so hordes don't machine-gun
+		"swing":          {"vol": -4.4,  "gap": 55},
+		"enemy_swing":    {"vol": -5.9,  "gap": 90},
+		"enemy_hurt":     {"vol": -11.6, "gap": 60},
+		"enemy_die":      {"vol": -12.0, "gap": 70},
+		"player_hurt":    {"vol": -5.7,  "gap": 110},
+		"player_die":     {"vol": -7.2,  "gap": 200},
+		"princess_fall":  {"vol": -7.2,  "gap": 400},   # one-shot; her fall is THE big reverent moment
+		"boom":           {"vol": -12.8, "gap": 90},
+		"zap":            {"vol": -8.3,  "gap": 75},
+		"cast":           {"vol": -11.5, "gap": 110},
+		"trap_hit":       {"vol": -6.8,  "gap": 90},
+		# squire actions / gifts — foreground tier (~-23 dB)
+		"dash":           {"vol": -10.0, "gap": 90},
+		"pickup":         {"vol": -3.2,  "gap": 60},
+		"princess_drink": {"vol": -4.6,  "gap": 80},
+		"princess_arm":   {"vol": -2.1,  "gap": 80},
+		"gift_curse":     {"vol": -6.9,  "gap": 90},
+		"tipoff":         {"vol": -8.9,  "gap": 150},
 		# mass-trigger (fire for every monster at once) — long gap = ONE swell, not forty
-		"enrage":         {"vol": -10.0, "gap": 220},
-		"defect":         {"vol": -9.0,  "gap": 220},
+		"enrage":         {"vol": -8.9,  "gap": 220},
+		"defect":         {"vol": -8.0,  "gap": 220},
 		# events / chaos — rarer, can be present
-		"explosion_big":  {"vol": -9.0,  "gap": 300},
-		"crowd":          {"vol": -9.0,  "gap": 250},
-		"infighting":     {"vol": -8.0,  "gap": 250},
-		"swarm":          {"vol": -7.0,  "gap": 250},
-		"trap_spawn":     {"vol": -8.0,  "gap": 200},
-		"angel":          {"vol": -6.0,  "gap": 200},
-		# system / UI stings — sparse punctuation, allowed to read clearly
-		"wave_start":     {"vol": -7.0,  "gap": 200},
-		"wave_clear":     {"vol": -7.0,  "gap": 200},
-		"levelup":        {"vol": -9.0,  "gap": 150},
-		"betray_sting":   {"vol": -9.0,  "gap": 500},
-		"betray_roar":    {"vol": -9.0,  "gap": 500},
-		"win":            {"vol": -11.0, "gap": 500},
-		"lose":           {"vol": -11.0, "gap": 500},
-		"ui_click":       {"vol": -9.0,  "gap": 40},
-		"ui_hover":       {"vol": -14.0, "gap": 40},
-		"ui_toggle":      {"vol": -10.0, "gap": 40},
+		"explosion_big":  {"vol": -7.0,  "gap": 300},
+		"crowd":          {"vol": -7.1,  "gap": 250},
+		"infighting":     {"vol": -5.5,  "gap": 250},
+		"swarm":          {"vol": -2.4,  "gap": 250},
+		"trap_spawn":     {"vol": -2.9,  "gap": 200},
+		"angel":          {"vol": -5.9,  "gap": 200},
+		# system / UI stings — foreground stings; UI ticks subordinate
+		"wave_start":     {"vol": -8.7,  "gap": 200},
+		"wave_clear":     {"vol": -11.9, "gap": 200},
+		"levelup":        {"vol": -5.4,  "gap": 150},
+		"betray_sting":   {"vol": -8.7,  "gap": 500},
+		"betray_roar":    {"vol": -8.7,  "gap": 500},
+		"win":            {"vol": -10.6, "gap": 500},
+		"lose":           {"vol": -12.0, "gap": 500},
+		"ui_click":       {"vol": -0.6,  "gap": 40},
+		"ui_hover":       {"vol": -11.5, "gap": 40},
+		"ui_toggle":      {"vol": -5.2,  "gap": 40},
 	}
 
 ## Resolve a path-without-extension to the first existing AUDIO_EXTS variant ("" if none).
@@ -358,6 +381,7 @@ static func _find(base: String) -> String:
 	return ""
 
 ## Load named clips from a subfolder, dropping any that are missing (partial-pack safe).
+## Each entry is {s: stream, g: per-clip level-match gain dB} (see CLIP_GAIN).
 static func _pack(dir: String, names: Array) -> Array:
 	var out := []
 	for n in names:
@@ -365,7 +389,7 @@ static func _pack(dir: String, names: Array) -> Array:
 		if path != "":
 			var s := load(path)
 			if s != null:
-				out.append(s)
+				out.append({"s": s, "g": float(CLIP_GAIN.get(n, 0.0))})
 	return out
 
 ## Load a numbered Kenney variant run: base_000 .. base_(count-1).
