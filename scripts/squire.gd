@@ -179,6 +179,11 @@ func _toggle_curse() -> void:
 	if carry == "":
 		return
 	cursed = not cursed
+	if cursed:
+		# a voodoo puff bursts off the gift the instant you hex it (violet + sickly green)
+		var at := global_position + Vector2(0, _overlay_y)
+		Fx.sparks(get_parent(), at, Color(0.62, 0.2, 0.85), 16, 150.0, 0.5)
+		Fx.sparks(get_parent(), at, Color(0.35, 0.95, 0.45), 10, 110.0, 0.55)
 
 ## Tip off the enemy (phase 1) / rally your defectors (phase 2): enrage every
 ## monster so it hits the Princess harder. Costs stamina; raises suspicion.
@@ -194,6 +199,9 @@ func _tip_off() -> void:
 		_game.minor_suspicion()
 	_flash = 0.15
 	_flash_col = Color(1.0, 0.5, 0.2)
+	# a rallying shock-ring + embers ripple out as you whip the horde into a frenzy
+	Fx.ring(get_parent(), global_position, 96.0, Color(1.0, 0.5, 0.2), 0.4, 7.0)
+	Fx.sparks(get_parent(), global_position, Color(1.0, 0.55, 0.25), 18, 175.0, 0.5)
 
 ## Stir up a random "scheme" event (plane / revolt / infighting). The EventDirector
 ## handles the cooldown + suspicion cost; we just flash to acknowledge the input.
@@ -203,6 +211,9 @@ func _scheme() -> void:
 	if _game.event_director.trigger_scheme():
 		_flash = 0.15
 		_flash_col = Color(1.0, 0.4, 0.8)
+		# a mischievous pink spark-ring as you stir the pot
+		Fx.ring(get_parent(), global_position, 80.0, Color(1.0, 0.4, 0.8), 0.4, 6.0)
+		Fx.sparks(get_parent(), global_position, Color(1.0, 0.45, 0.85), 16, 155.0, 0.5)
 
 func _try_pickup() -> void:
 	if carry != "":
@@ -212,6 +223,8 @@ func _try_pickup() -> void:
 			carry = p.kind
 			cursed = false
 			Sfx.play("pickup")
+			# a little golden sparkle as you scoop up the supply
+			Fx.sparks(get_parent(), global_position + Vector2(0, -8), Color(1.0, 0.95, 0.6), 14, 130.0, 0.45)
 			p.queue_free()
 			return
 
@@ -229,12 +242,19 @@ func _try_hand() -> void:
 	else:
 		if cursed: pr.receive_cursed_weapon()
 		else: pr.receive_genuine_weapon()
+	var hand_at := pr.global_position + Vector2(0, -10)
 	if cursed:
 		Sfx.play("gift_curse")          # ominous extra cue; the sip/arm sound plays on the Princess
 		_game.sabotage_suspicion()
+		# voodoo puff as the hexed gift changes hands
+		Fx.sparks(get_parent(), hand_at, Color(0.62, 0.2, 0.85), 18, 145.0, 0.6)
+		Fx.sparks(get_parent(), hand_at, Color(0.35, 0.95, 0.45), 10, 100.0, 0.6)
 	else:
 		_game.help_calms_suspicion()
 		_play("heal"); _anim_lock = 0.5  # a pious little flourish to sell the loyal-servant act
+		# a wholesome green heal-flourish for a genuine gift
+		Fx.ring(get_parent(), pr.global_position, 60.0, Color(0.7, 1.0, 0.8), 0.45, 5.0)
+		Fx.sparks(get_parent(), hand_at, Color(0.55, 1.0, 0.65), 18, 130.0, 0.65)
 	carry = ""
 	cursed = false
 

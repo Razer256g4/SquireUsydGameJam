@@ -619,6 +619,7 @@ func level_up() -> void:
 	_flash = 0.4
 	_flash_col = Color(1.0, 0.9, 0.3)
 	_lvlup_t = LVLUP_TIME       # pop the floating "LEVEL UP +stats" readout above her
+	Fx.levelup(get_parent(), global_position + Vector2(0, -8), Color(1.0, 0.88, 0.34))  # gold burst
 
 func become_boss() -> void:
 	hostile = true
@@ -627,6 +628,7 @@ func become_boss() -> void:
 	_flash_col = Color(1.0, 0.2, 0.2)
 	_play("hurt")
 	_anim_lock = 0.4
+	Fx.nova(get_parent(), global_position, 150.0, Color(1.0, 0.2, 0.2))   # wrathful red shockwave
 	if _game and _game.hud:
 		_game.hud.princess_say("You... TRAITOR!")
 

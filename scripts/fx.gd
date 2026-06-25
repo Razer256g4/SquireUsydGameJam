@@ -118,6 +118,68 @@ static func nova(parent: Node, pos: Vector2, radius: float, col: Color) -> void:
 	ring(parent, pos, radius * 0.6, Color(1, 1, 1, 0.9), 0.4, 6.0)
 	sparks(parent, pos, col, 50, radius * 1.6, 0.6)
 
+## Chunky wreckage: square bits flung up and out, tumbling, dragged back down by
+## gravity so they arc and fall (unlike the weightless radial `sparks`). For crashes.
+static func debris(parent: Node, pos: Vector2, col: Color, amount: int, power: float, life := 0.9) -> void:
+	var p := CPUParticles2D.new()
+	p.texture = _chunk_tex()
+	p.position = pos
+	p.z_index = 49
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.amount = maxi(1, amount)
+	p.lifetime = life
+	p.direction = Vector2.UP                   # thrown up, then gravity arcs them down
+	p.spread = 85.0
+	p.gravity = Vector2(0, 900.0)
+	p.initial_velocity_min = power * 0.45
+	p.initial_velocity_max = power
+	p.angular_velocity_min = -480.0            # tumbling chunks
+	p.angular_velocity_max = 480.0
+	p.damping_min = 8.0
+	p.damping_max = 36.0
+	p.scale_amount_min = 2.5
+	p.scale_amount_max = 6.5
+	p.color = col
+	var g := Gradient.new()
+	g.set_color(0, Color(col.r, col.g, col.b, 1.0))
+	g.set_color(1, Color(col.r, col.g, col.b, 0.0))
+	p.color_ramp = g
+	parent.add_child(p)
+	p.emitting = true
+	p.get_tree().create_timer(life + 0.4).timeout.connect(p.queue_free)
+
+## Celebratory pop for a level-up / power spike: a gold halo, a white inner flash, and
+## a fountain of motes that float UP (negative gravity) plus white sparkle stars.
+static func levelup(parent: Node, pos: Vector2, col := Color(1.0, 0.88, 0.34)) -> void:
+	ring(parent, pos, 92.0, col, 0.6, 8.0)
+	ring(parent, pos, 54.0, Color(1, 1, 1, 0.9), 0.45, 5.0)
+	var p := CPUParticles2D.new()
+	p.texture = _dot_tex()
+	p.position = pos
+	p.z_index = 50
+	p.one_shot = true
+	p.explosiveness = 0.82
+	p.amount = 36
+	p.lifetime = 1.1
+	p.direction = Vector2.UP
+	p.spread = 52.0
+	p.gravity = Vector2(0, -120.0)             # buoyant motes drift upward
+	p.initial_velocity_min = 70.0
+	p.initial_velocity_max = 190.0
+	p.damping_min = 20.0
+	p.damping_max = 60.0
+	p.scale_amount_min = 2.0
+	p.scale_amount_max = 5.0
+	var g := Gradient.new()
+	g.set_color(0, Color(col.r, col.g, col.b, 1.0))
+	g.set_color(1, Color(col.r, col.g, col.b, 0.0))
+	p.color_ramp = g
+	parent.add_child(p)
+	p.emitting = true
+	p.get_tree().create_timer(1.5).timeout.connect(p.queue_free)
+	sparks(parent, pos, Color(1, 1, 1), 16, 150.0, 0.5)
+
 # --- dash juice -------------------------------------------------------------
 ## A directional puff of dust kicked out behind a dash. `dir` is the dash heading;
 ## the dust sprays the OPPOSITE way (like grit off a sprinter's heels).
@@ -200,3 +262,18 @@ static func _dot_tex() -> Texture2D:
 			img.set_pixel(x, y, Color(1, 1, 1, a * a))
 	_dot = ImageTexture.create_from_image(img)
 	return _dot
+
+# Small square "chunk" used by debris bursts (built once, cached). A flat block with a
+# darker bottom/right edge so the tumbling rotation reads as a solid shard, not a dot.
+static var _chunk: Texture2D
+static func _chunk_tex() -> Texture2D:
+	if _chunk:
+		return _chunk
+	var s := 8
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	img.fill(Color(1, 1, 1, 1))
+	for i in s:
+		img.set_pixel(i, s - 1, Color(0.68, 0.68, 0.68, 1))
+		img.set_pixel(s - 1, i, Color(0.68, 0.68, 0.68, 1))
+	_chunk = ImageTexture.create_from_image(img)
+	return _chunk

@@ -117,7 +117,8 @@ func _plane_impact(center: Vector2, radius: float) -> void:
 	Hazard.spawn(_game, center, radius * 0.8, 16.0, 5.0, FIRE)   # unchanged: burning crater
 	# --- flash & funny layer (visual only) ---
 	Fx.nova(_game, center, radius * 1.25, Color(1.0, 0.85, 0.3)) # second shockwave ring
-	Fx.sparks(_game, center, Color(0.55, 0.55, 0.6), 26, radius * 2.4, 0.8)  # flying debris/smoke
+	Fx.sparks(_game, center, Color(0.55, 0.55, 0.6), 26, radius * 2.4, 0.8)  # flying smoke
+	Fx.debris(_game, center, Color(0.5, 0.48, 0.52), 14, radius * 1.7, 0.9)  # a bit of tumbling wreckage
 	if _game.hud:
 		_game.hud.big_flash("KABOOM!")                           # giant comic centre text
 	_game.shake(0.5)                                             # extra kick on top of _boom's 0.6
