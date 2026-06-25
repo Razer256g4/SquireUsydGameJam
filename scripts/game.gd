@@ -268,6 +268,7 @@ func win() -> void:
 	if phase == "won" or phase == "lost":
 		return
 	phase = "won"
+	Sfx.stop_music()            # silence the boss track — only the victory sting plays over the end
 	Sfx.play("win")
 	hud.update_state(self)      # final snapshot — _process stops refreshing once we leave the play phases
 	# Victory cutscene (her power stolen → crowned king → the wheel turns) plays over the
@@ -286,6 +287,7 @@ func lose(cause := "") -> void:
 	if phase == "won" or phase == "lost":
 		return
 	phase = "lost"
+	Sfx.stop_music()            # silence the boss track — only the defeat sting plays over the end
 	Sfx.play("lose")
 	hud.update_state(self)      # final snapshot so the HP pips show the lethal hit (0 left), not a stale 1
 	hud.show_end(false, elapsed, wave, cause)

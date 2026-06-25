@@ -33,12 +33,10 @@ const MIX_TRIM := -3.0
 # natively, so the loader is format-agnostic — a clip resolves to the first ext present.
 const AUDIO_EXTS: Array[String] = [".ogg", ".mp3", ".wav"]
 const MUSIC_BED_DB := -7.0                  # serving/menu/boss bed level (under the SFX)
-# Suspicion-reactive serving score: tracks by ASCENDING suspicion band, each
-# {at: threshold 0..1, name}. serving_music(frac) crossfades up to the highest band the
-# meter has reached (and back down, with hysteresis), so the music sours calm -> tension as
-# she closes in. A quick dip-and-swap on one player (robust whether or not the stems are
-# sample-aligned), not a sustained simultaneous layer mix. The dread stem (suspicion3) is NOT
-# a serving band — it's the boss track once she knows (see _betray() in game.gd).
+# Suspicion-reactive serving score: SEPARATE tracks by ASCENDING suspicion band, each
+# {at: threshold 0..1, name}. serving_music(frac) HARD-CUTS to the highest band the meter has
+# reached (and back down, with hysteresis) — no blend between bands. The dread stem
+# (suspicion3) is NOT a serving band — it's the boss track once she knows (see _betray()).
 const SERVING_BANDS := [
 	{"at": 0.0,  "name": "serving"},        # calm bed (commissioned "suspicion0-33")
 	{"at": 0.50, "name": "suspicion2"},     # tension — once she starts to doubt (50%+)
@@ -50,7 +48,6 @@ static var _holder: Node = null             # parents the pool; lives under root
 static var _pending_music := ""             # track requested before the holder was in-tree
 static var _music_name := ""                # name of the track currently on _music
 static var _serving_band := -1              # active SERVING_BANDS index (-1 = not in the reactive serving score)
-static var _xfade: Tween = null             # in-flight crossfade tween (killed before any new music command)
 static var _next := 0                       # round-robin cursor
 static var _last := {}                      # key -> Time.get_ticks_msec() of last play
 static var _lib := {}                       # key -> Array[AudioStream]
@@ -134,9 +131,9 @@ static func play(key: String, pitch_var := 0.06, volume_db := 0.0) -> void:
 	p.play()
 
 # --- music ------------------------------------------------------------------
-## Loop a background track from assets/audio/music/<name> as a quiet bed (hard cut).
-## Used for the standalone cues: menu / boss / (future victory, defeat). The serving
-## phase instead drives serving_music() for the suspicion-reactive crossfade.
+## Hard-cut to a background loop from assets/audio/music/<name>. Every track swap in the
+## game is an instant cut — no crossfade/blend. Used for the standalone cues (menu / boss /
+## end); the serving phase drives serving_music() for the suspicion bands (also hard cuts).
 static func play_music(name: String, volume_db := MUSIC_BED_DB) -> void:
 	_boot()
 	if _music == null:
@@ -144,25 +141,12 @@ static func play_music(name: String, volume_db := MUSIC_BED_DB) -> void:
 	if not _music.is_inside_tree():
 		_pending_music = name               # holder attaches deferred; _start_pending_music() retries
 		return
-	_kill_xfade()                           # cancel any in-flight crossfade before a hard swap
 	_serving_band = -1                      # leaving the reactive serving score (menu/boss/etc.)
-	var path := _find("%s%s" % [MUSIC_DIR, name])
-	if path == "":
-		return
-	var stream := load(path) as AudioStream
-	if stream == null:
-		return
-	_music_name = name
-	if _music.stream == stream and _music.playing:
-		return                              # already on this track — don't restart
-	stream.set("loop", true)                # harmless no-op for stream types without a loop flag
-	_music.stream = stream
-	_music.volume_db = volume_db
-	_music.play()
+	_swap_stream(name, volume_db)
 
 ## Suspicion-reactive serving score. Call every serving-phase frame with suspicion/MAX
-## (0..1): keeps the serving music playing and crossfades to the band matching the meter,
-## with a little hysteresis so it doesn't flap on the boundary. Idempotent within a band.
+## (0..1): hard-cuts to the band matching the meter, with a little hysteresis so it doesn't
+## flap on the boundary. The bands are SEPARATE tracks — no blending between them.
 static func serving_music(frac: float) -> void:
 	_boot()
 	if _music == null or not _music.is_inside_tree():
@@ -180,36 +164,28 @@ static func serving_music(frac: float) -> void:
 		_serving_band = 0
 		return
 	_serving_band = target
-	_crossfade_music(String(SERVING_BANDS[target]["name"]))
+	_swap_stream(String(SERVING_BANDS[target]["name"]), MUSIC_BED_DB)
 
-## Dip the current track out, swap streams, fade the new one in (~0.8 s total) — one player.
-static func _crossfade_music(name: String) -> void:
+## Instant stream swap on the single music player (the shared hard-cut). No-op if the
+## track is missing (partial-pack safe) or already playing.
+static func _swap_stream(name: String, volume_db: float) -> void:
 	var path := _find("%s%s" % [MUSIC_DIR, name])
 	if path == "":
 		return
 	var stream := load(path) as AudioStream
 	if stream == null:
 		return
-	_kill_xfade()
 	_music_name = name
-	_xfade = _holder.create_tween()
-	if _music.playing:
-		_xfade.tween_property(_music, "volume_db", -40.0, 0.35)
-	_xfade.tween_callback(func() -> void:
-		stream.set("loop", true)
-		_music.stream = stream
-		_music.volume_db = -40.0
-		_music.play())
-	_xfade.tween_property(_music, "volume_db", MUSIC_BED_DB, 0.45)
-
-static func _kill_xfade() -> void:
-	if _xfade != null and _xfade.is_valid():
-		_xfade.kill()
-	_xfade = null
+	if _music.stream == stream and _music.playing:
+		return                              # already on this track — don't restart
+	stream.set("loop", true)                # harmless no-op for stream types without a loop flag
+	_music.stream = stream
+	_music.volume_db = volume_db
+	_music.play()
 
 static func stop_music() -> void:
-	_kill_xfade()
 	_serving_band = -1
+	_music_name = ""
 	if _music:
 		_music.stop()
 

@@ -7,11 +7,12 @@ first match wins -- see scripts/sfx.gd -> _find / play_music / serving_music):
   suspicion3.mp3  - dread/final track; plays once she betrays you  (commissioned "level 3 / final")
   boss.ogg        - old boss placeholder [no longer used -- suspicion3 scores the boss fight now]
 
-SUSPICION-REACTIVE SCORE: during the serving phase the music crossfades up through the
-SERVING_BANDS table in sfx.gd as the suspicion meter climbs (calm -> tension at 50%), and
-back down with hysteresis if you regain her trust. When suspicion hits 100% she betrays you
-("she knows") and _betray() in game.gd hard-cuts to suspicion3 (the dread/final track) for
-the boss fight. Tweak the thresholds/add a band by editing SERVING_BANDS.
+SUSPICION-REACTIVE SCORE: every track swap is a HARD CUT -- the layers are separate, never
+blended. During the serving phase the music snaps up through the SERVING_BANDS table in
+sfx.gd as the suspicion meter climbs (calm -> tension at 50%), and back down with hysteresis
+if you regain her trust. When suspicion hits 100% she betrays you ("she knows") and _betray()
+cuts to suspicion3 (dread) for the boss fight. On victory/defeat the music STOPS (silence --
+only the win/lose sting plays). Tweak the thresholds/add a band by editing SERVING_BANDS.
 
 Drop a file with the right name into this folder and it starts working automatically --
 no code changes needed. A missing track is simply silent (no errors).
