@@ -131,7 +131,10 @@ func _ready() -> void:
 	_cam.make_current()
 
 	_build_scenery()
-	Sfx.play_music("serving")    # loops assets/audio/music/serving.ogg if present (silent otherwise)
+	# Menu theme plays under the cutscene + controls briefing; the serving track takes over
+	# when the briefing is dismissed (IntroScreen._dismiss). On an R-restart the intro is
+	# already `seen`, so there's no briefing to wait on — start the serving track directly.
+	Sfx.play_music("menu" if not INTRO_SCREEN.seen else "serving")
 	queue_redraw()
 
 ## Hand off from the opening story cutscene to the controls briefing (both stay paused).

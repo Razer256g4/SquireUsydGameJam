@@ -602,7 +602,7 @@ func _on_death() -> void:
 		return
 	_dead = true
 	hp = 0.0
-	Sfx.play("player_die")                  # her fall is a big moment — use the heavier death cue
+	Sfx.play("princess_fall")               # her fall is THE win — its own reverent cue, not the squire's death
 	_play("death")
 	_anim_lock = 999.0
 	if _game:

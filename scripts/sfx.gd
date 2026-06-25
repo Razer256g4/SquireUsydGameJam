@@ -23,6 +23,10 @@ const DEFAULT_GAP := 45                     # fallback min-ms between two plays 
 const ROOT := "res://assets/audio/"
 const MUSIC_DIR := "res://assets/audio/music/"
 const MASTER_CEILING_DB := -1.0             # limiter ceiling so the mix never clips
+# Accepted source formats, in preference order. The commissioned originals ship as .mp3
+# (web-friendly size); the remaining CC0 placeholders are .ogg. Godot imports all three
+# natively, so the loader is format-agnostic — a clip resolves to the first ext present.
+const AUDIO_EXTS: Array[String] = [".ogg", ".mp3", ".wav"]
 
 static var _players: Array[AudioStreamPlayer] = []
 static var _music: AudioStreamPlayer = null
@@ -119,8 +123,8 @@ static func play_music(name: String, volume_db := -7.0) -> void:
 	if not _music.is_inside_tree():
 		_pending_music = name               # holder attaches deferred; _start_pending_music() retries
 		return
-	var path := "%s%s.ogg" % [MUSIC_DIR, name]
-	if not ResourceLoader.exists(path):
+	var path := _find("%s%s" % [MUSIC_DIR, name])
+	if path == "":
 		return
 	var stream := load(path) as AudioStream
 	if stream == null:
@@ -173,45 +177,49 @@ static func _install_master_limiter() -> void:
 # --- clip library -----------------------------------------------------------
 ## Map each logical event to its clips. Missing files are skipped (partial-pack safe).
 static func _build_library() -> void:
+	# Commissioned originals live in assets/audio/orig/<key>/ (one folder per logical key,
+	# the composer's own variant filenames). Re-pointed here once — this map is the single
+	# source of truth. Any key whose folder is absent falls back to silence (partial-pack safe).
 	_lib = {
 		# combat / actors
-		"swing":          _pack("rpg", ["knifeSlice", "knifeSlice2", "chop"]),
-		"enemy_swing":    _pack("rpg", ["chop", "knifeSlice"]),
-		"enemy_hurt":     _seq("impact", "impactPunch_medium", 5),
-		"enemy_die":      _seq("impact", "impactSoft_heavy", 5),
-		"player_hurt":    _seq("impact", "impactPunch_heavy", 5),
-		"player_die":     _seq("impact", "impactGlass_heavy", 5),
-		"boom":           _seq("scifi", "explosionCrunch", 5),          # real AoE explosion
-		"zap":            _seq("scifi", "laserLarge", 5),               # beam / charge / smite
-		"cast":           _pack("rpg", ["cloth1", "cloth2", "cloth3", "cloth4"]),  # subtle whoosh (very frequent)
+		"swing":          _pack("orig/swing",          ["swing_1", "swing_2", "swing_3", "swing_4"]),
+		"enemy_swing":    _pack("orig/enemy_swing",    ["enemyswing_1", "enemyswing_2", "enemyswing_3", "enemyswing_4"]),
+		"enemy_hurt":     _pack("orig/enemy_hurt",     ["enemyhurt_1", "enemyhurt_2", "enemyhurt_3", "enemyhurt_4", "enemyhurt_5"]),
+		"enemy_die":      _pack("orig/enemy_die",      ["enemydie_1", "enemydie_2", "enemydie_3", "enemydie_4", "enemydie_5", "enemydie_6"]),
+		"player_hurt":    _pack("orig/player_hurt",    ["squirehurt_1", "squirehurt_2", "squirehurt_3", "squirehurt_4", "squirehurt_5"]),
+		"player_die":     _pack("orig/player_die",     ["playerdeath_1", "playerdeath_2", "playerdeath_3", "playerdeath_4", "playerdeath_5"]),
+		"princess_fall":  _pack("orig/princess_fall",  ["princessdeath_1", "princessdeath_2", "princessdeath_3", "princessdeath_4", "princessdeath_5"]),  # her fall = the win; split out from player_die
+		"boom":           _pack("orig/boom",           ["explosion_1", "explosion_2", "explosion_3"]),  # arcane AoE blast
+		"zap":            _pack("orig/zap",            ["zap_1", "zap_2", "zap_3", "zap_4", "zap_5"]),   # beam / charge / smite
+		"cast":           _pack("orig/cast",           ["cast_1", "cast_2", "cast_3", "cast_4"]),        # subtle shimmer-whoosh (very frequent)
 		# squire actions / gifts
-		"dash":           _pack("rpg", ["cloth1", "cloth2"]),
-		"pickup":         _pack("rpg", ["handleCoins", "handleCoins2"]),
-		"princess_drink": _pack("rpg", ["metalPot1", "metalPot2", "metalPot3"]),
-		"princess_arm":   _pack("rpg", ["drawKnife1", "drawKnife2", "drawKnife3"]),
-		"gift_curse":     _pack("rpg", ["creak1", "creak2", "creak3"]),
-		"tipoff":         _pack("rpg", ["metalClick", "metalLatch"]),
-		"enrage":         _seq("impact", "impactSoft_medium", 5),
-		"defect":         _pack("rpg", ["metalLatch", "beltHandle1"]),
+		"dash":           _pack("orig/dash",           ["dash_1", "dash_2", "dash_3"]),
+		"pickup":         _pack("orig/pickup",         ["itempickup"]),
+		"princess_drink": _pack("orig/princess_drink", ["princess_drink"]),
+		"princess_arm":   _pack("orig/princess_arm",   ["princess_arm"]),
+		"gift_curse":     _pack("orig/gift_curse",     ["gift_curse"]),    # the sabotage tell
+		"tipoff":         _pack("orig/tipoff",         ["tipoff"]),
+		"enrage":         _pack("orig/enrage",         ["enrage"]),
+		"defect":         _pack("orig/defect",         ["defect"]),
 		# events / chaos
-		"explosion_big":  _seq("scifi", "lowFrequency_explosion", 2),   # deep huge boom (plane crash)
-		"crowd":          _seq("impact", "footstep_concrete", 5),
-		"infighting":     _seq("impact", "impactGeneric_light", 5),
-		"swarm":          _seq("impact", "impactTin_medium", 5),
-		"trap_spawn":     _seq("impact", "impactWood_heavy", 5),
-		"trap_hit":       _seq("impact", "impactMetal_light", 5),
-		"angel":          _seq("scifi", "laserLarge", 5),               # heavenly beams descend
+		"explosion_big":  _pack("orig/explosion_big",  ["planecrash"]),    # deep huge boom (plane crash)
+		"crowd":          _pack("orig/crowd",          ["peasantrevolt"]),
+		"infighting":     _pack("orig/infighting",     ["infighting"]),
+		"swarm":          _pack("orig/swarm",          ["67"]),            # the "67" tiny-minion gag
+		"trap_spawn":     _pack("orig/trap_spawn",     ["traplay"]),
+		"trap_hit":       _pack("orig/trap_hit",       ["traphit"]),
+		"angel":          _pack("orig/angel",          ["angel"]),         # heavenly beams descend
 		# system / UI stings
-		"wave_start":     _pack("ui", ["switch20"]),
-		"wave_clear":     _pack("ui", ["switch21"]),
-		"levelup":        _pack("ui", ["switch15"]),
-		"betray_sting":   _seq("scifi", "lowFrequency_explosion", 2),   # deep WHOOM as she turns
-		"betray_roar":    _seq("impact", "impactMetal_heavy", 5),
-		"win":            _pack("ui", ["switch31"]),
-		"lose":           _pack("impact", ["impactGlass_heavy_004"]),
-		"ui_click":       _pack("ui", ["click1", "click2", "click3", "click4", "click5"]),
-		"ui_hover":       _pack("ui", ["rollover1", "rollover2", "rollover3"]),
-		"ui_toggle":      _pack("ui", ["switch1"]),
+		"wave_start":     _pack("orig/wave_start",     ["wavestart"]),
+		"wave_clear":     _pack("orig/wave_clear",     ["waveclear"]),
+		"levelup":        _pack("orig/levelup",        ["princesslevelup"]),
+		"betray_sting":   _pack("orig/betray_sting",   ["betray_sting"]),  # deep WHOOM as she turns
+		"betray_roar":    _pack("orig/betray_roar",    ["betray_roar", "betray_roar2"]),
+		"win":            _pack("orig/win",            ["win"]),
+		"lose":           _pack("orig/lose",           ["lose"]),
+		"ui_click":       _pack("orig/ui_click",       ["ui_click"]),
+		"ui_hover":       _pack("orig/ui_hover",       ["ui_hover"]),
+		"ui_toggle":      _pack("orig/ui_toggle",      ["ui_toggle"]),
 	}
 
 ## Per-key MIX: base gain (dB, negative = quieter) + min retrigger gap (ms).
@@ -226,6 +234,7 @@ static func _build_config() -> void:
 		"enemy_die":      {"vol": -8.0,  "gap": 70},
 		"player_hurt":    {"vol": -4.0,  "gap": 110},
 		"player_die":     {"vol": -2.0,  "gap": 200},
+		"princess_fall":  {"vol": -1.0,  "gap": 400},   # one-shot; her fall is THE big reverent moment
 		"boom":           {"vol": -9.0,  "gap": 90},
 		"zap":            {"vol": -12.0, "gap": 75},
 		"cast":           {"vol": -16.0, "gap": 110},
@@ -260,12 +269,20 @@ static func _build_config() -> void:
 		"ui_toggle":      {"vol": -10.0, "gap": 40},
 	}
 
+## Resolve a path-without-extension to the first existing AUDIO_EXTS variant ("" if none).
+static func _find(base: String) -> String:
+	for ext in AUDIO_EXTS:
+		var path := base + ext
+		if ResourceLoader.exists(path):
+			return path
+	return ""
+
 ## Load named clips from a subfolder, dropping any that are missing (partial-pack safe).
 static func _pack(dir: String, names: Array) -> Array:
 	var out := []
 	for n in names:
-		var path := "%s%s/%s.ogg" % [ROOT, dir, n]
-		if ResourceLoader.exists(path):
+		var path := _find("%s%s/%s" % [ROOT, dir, n])
+		if path != "":
 			var s := load(path)
 			if s != null:
 				out.append(s)
