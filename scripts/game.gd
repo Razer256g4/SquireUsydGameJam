@@ -469,12 +469,29 @@ const FLOOR_TILE_PATHS := [
 ]
 var _floor_tex: Array[Texture2D] = []
 
+# Scattered skull decorations ("here and there") — 0x72 skull.png (16x16). Positions are
+# ARENA-RELATIVE fractions so the scatter spreads to any viewport size and stays put across
+# resizes (deterministic, no RNG). Each row: [x_frac, y_frac, scale, flip(1/-1), rot]. The
+# centre (where the Princess/Squire start) is kept clear.
+const SKULL_TINT := Color(0.72, 0.70, 0.66)   # weathered bone; sits into the dark floor
+const SKULL_SPOTS := [
+	[0.09, 0.30, 3.6,  1, -0.25], [0.16, 0.66, 2.8, -1,  0.18],
+	[0.28, 0.86, 3.2,  1,  0.30], [0.30, 0.18, 2.6, -1, -0.12],
+	[0.40, 0.74, 3.0,  1, -0.20], [0.50, 0.88, 3.4, -1,  0.10],
+	[0.62, 0.70, 2.7,  1,  0.22], [0.72, 0.30, 3.0, -1, -0.28],
+	[0.84, 0.55, 3.5,  1,  0.14], [0.90, 0.82, 2.6, -1, -0.16],
+	[0.66, 0.16, 2.8,  1,  0.20], [0.20, 0.46, 2.5, -1,  0.26],
+	[0.80, 0.40, 2.9,  1, -0.10],
+]
+var _skull_tex: Texture2D
+
 func _load_floor() -> void:
 	_floor_tex.clear()
 	for p in FLOOR_TILE_PATHS:
 		var tex := load(p) as Texture2D
 		if tex != null:
 			_floor_tex.append(tex)
+	_skull_tex = load("res://assets/terrain/0x72/skull.png") as Texture2D
 
 ## Deterministic per-cell tile: tile 0 (plain) dominates; ~1 cell in 6 draws one of the
 ## cracked variants (indices 1..n-1), spread evenly by the hash.
@@ -522,7 +539,20 @@ func _draw() -> void:
 		draw_rect(inner, Color(0.16, 0.16, 0.22))   # fallback: flat fill if the tiles failed to load
 	else:
 		_draw_floor(inner)
+	_draw_decor(inner)
 	draw_rect(inner, Color(0.30, 0.29, 0.38), false, 5.0)   # stone-edge border
+
+## Scatter skull decorations across the floor. Drawn from the Game node's own _draw(), so
+## they sit BELOW the child nodes (characters/buildings) and get walked over.
+func _draw_decor(inner: Rect2) -> void:
+	if _skull_tex == null:
+		return
+	var half := _skull_tex.get_size() * 0.5
+	for s in SKULL_SPOTS:
+		var pos := inner.position + Vector2(inner.size.x * s[0], inner.size.y * s[1])
+		draw_set_transform(pos, s[4], Vector2(s[2] * s[3], s[2]))   # centre, rotate, scale/flip
+		draw_texture(_skull_tex, -half, SKULL_TINT)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)   # reset so the border draws untransformed
 
 ## Tile the stone floor across `inner`. Edge cells are cropped (not squashed) via
 ## draw_texture_rect_region so the mortar grid stays aligned right up to the wall.
