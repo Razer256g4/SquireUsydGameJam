@@ -7,7 +7,8 @@ class_name Settings
 static var screen_shake := true
 static var hit_stop := true
 
-# Placeholders for when audio lands (the deferred music/SFX pass). Wired into the
-# pause-menu sliders now so they're ready; nothing reads them until buses exist.
+# Audio levels (0..1), surfaced as pause-menu sliders. The Sfx helper pushes these
+# onto the Master / SFX / Music buses via Sfx.apply_volumes(); a 0 mutes that bus.
 static var master_volume := 1.0
 static var sfx_volume := 1.0
+static var music_volume := 0.7

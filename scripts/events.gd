@@ -108,12 +108,13 @@ func _plane_impact(center: Vector2, radius: float) -> void:
 	if _game.hud:
 		_game.hud.big_flash("KABOOM!")                           # giant comic centre text
 	_game.shake(0.5)                                             # extra kick on top of _boom's 0.6
-	# SFX: plane crash boom (deferred)
+	Sfx.play("explosion_big")                                    # deep boom — level set in Sfx mix config
 
 func _ev_protestors() -> void:
 	var n := rng.randi_range(6, 9)
 	for _i in n:
 		_game.spawn_monster("protestor", _game._edge_spawn_point(), "neutral")
+	Sfx.play("crowd")
 	if _game.hud:
 		_game.hud.announce("PEASANT REVOLT!")
 		_game.hud.squire_say(Lines.pick(Lines.PROTEST_SQUIRE))
@@ -121,6 +122,7 @@ func _ev_protestors() -> void:
 
 func _ev_infighting() -> void:
 	_game.infighting_timer = 6.0
+	Sfx.play("infighting")
 	if _game.hud:
 		_game.hud.announce("INFIGHTING!")
 		_game.hud.squire_say(Lines.pick(Lines.INFIGHT_SQUIRE))
@@ -128,6 +130,7 @@ func _ev_infighting() -> void:
 func _ev_swarm67() -> void:
 	for _i in 67:
 		_game.spawn_monster("minion", _game._edge_spawn_point())
+	Sfx.play("swarm")
 	if _game.hud:
 		_game.hud.big_flash("67")
 		_game.hud.squire_say(Lines.pick(Lines.SWARM67_SQUIRE))
@@ -139,6 +142,7 @@ func _ev_trap() -> void:
 	var w := _game.wave
 	var modes := _trap_modes()
 	var mode: String = modes[rng.randi() % modes.size()]
+	Sfx.play("trap_spawn")
 	if _game.hud:
 		_game.hud.announce("TRAP!")
 		_game.hud.squire_say(Lines.pick(Lines.TRAP_SQUIRE))
@@ -167,6 +171,7 @@ func _trap_modes() -> Array:
 ## cursed_streak crosses ANGEL_STREAK.
 func _ev_angel() -> void:
 	var w := _game.wave
+	Sfx.play("angel")
 	if _game.hud:
 		_game.hud.announce("DIVINE RETRIBUTION")
 		_game.hud.squire_say(Lines.pick(Lines.ANGEL_SQUIRE))

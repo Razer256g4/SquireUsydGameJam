@@ -100,6 +100,7 @@ func _ready() -> void:
 	_cam.make_current()
 
 	_build_scenery()
+	Sfx.play_music("serving")    # loops assets/audio/music/serving.ogg if present (silent otherwise)
 	queue_redraw()
 
 func _input(event: InputEvent) -> void:
@@ -156,6 +157,7 @@ func _run_waves(delta: float) -> void:
 			if _enemies_remaining() == 0:
 				wave_state = "intermission"
 				phase_timer = CLEAR_INTERMISSION
+				Sfx.play("wave_clear")
 				princess.level_up()
 				hud.announce("The Princess grows stronger... (Lv.%d)" % princess.level)
 				_wave_banter()
@@ -172,6 +174,7 @@ func _start_wave() -> void:
 	monsters_to_spawn = BASE_MONSTERS + wave * MONSTERS_PER_ROOM
 	spawn_timer = 0.0
 	wave_state = "spawning"
+	Sfx.play("wave_start")
 	hud.announce("Wave %d" % wave)
 
 ## A witty princess/squire exchange between waves — gives the betrayal story room
@@ -186,6 +189,8 @@ func _wave_banter() -> void:
 # --- phase 2: boss ---
 func _betray() -> void:
 	phase = "boss"
+	Sfx.play("betray_sting")                # deep WHOOM under her "TRAITOR!" roar (level in mix config)
+	Sfx.play_music("boss")                  # swap to assets/audio/music/boss.ogg if present
 	princess.become_boss()
 	# Every surviving monster defects to your side...
 	for m in get_tree().get_nodes_in_group("monsters"):
@@ -215,12 +220,14 @@ func win() -> void:
 	if phase == "won" or phase == "lost":
 		return
 	phase = "won"
+	Sfx.play("win")
 	hud.show_end(true, score, wave)
 
 func lose() -> void:
 	if phase == "won" or phase == "lost":
 		return
 	phase = "lost"
+	Sfx.play("lose")
 	hud.show_end(false, score, wave)
 
 ## A sabotage (cursed gift or tip-off) raises suspicion on an exponential curve:

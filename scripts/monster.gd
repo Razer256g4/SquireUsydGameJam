@@ -135,6 +135,7 @@ func _process(delta: float) -> void:
 			moved = true
 		elif _cd <= 0.0:
 			target.take_damage(damage)
+			Sfx.play("enemy_swing")
 			_cd = attack_cd
 			_play("attack")
 			_anim_lock = 0.35
@@ -197,12 +198,14 @@ func enrage() -> void:
 	if enraged:
 		return
 	enraged = true
+	Sfx.play("enrage")
 	speed *= 1.4
 	damage *= 1.5
 
 ## Switch sides at the betrayal: now fight FOR the squire, against the Princess.
 func defect() -> void:
 	faction = "ally"
+	Sfx.play("defect")
 	tint = ALLY_TINT
 	if _spr:
 		_spr.modulate = ALLY_TINT
@@ -225,11 +228,13 @@ func take_damage(d: float) -> void:
 	if hp <= 0.0:
 		_die()
 	else:
+		Sfx.play("enemy_hurt")
 		_play("hurt")
 		_anim_lock = 0.2
 
 func _die() -> void:
 	_dead = true
+	Sfx.play("enemy_die")
 	remove_from_group("monsters")
 	if _game:
 		_game.on_monster_killed(self)

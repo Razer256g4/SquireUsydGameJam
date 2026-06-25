@@ -226,6 +226,7 @@ func _try_abilities(target: Monster) -> void:
 
 func _attack_cleave() -> void:
 	_cd = base_attack_cd
+	Sfx.play("swing")
 	_play("attack")
 	_anim_lock = 0.35
 	var dmg := base_damage * power_mult
@@ -252,7 +253,7 @@ func _strike_circle(center: Vector2, radius: float, col: Color, dmg: float, hit_
 	if _game:                              # juice: every big AoE bomb thumps the screen
 		_game.shake(0.35)
 		_game.hitstop(0.05)
-	# SFX: AoE impact (deferred)
+	Sfx.play("boom")
 
 func _telegraph_line(from: Vector2, to: Vector2, half_w: float, delay: float, col: Color, dmg: float, hit_squire: bool) -> void:
 	var me := self
@@ -271,6 +272,7 @@ func _strike_line(from: Vector2, to: Vector2, half_w: float, col: Color, dmg: fl
 			sq.take_damage(dmg)
 	Fx.bolt(get_parent(), from, to, col, 0.3)
 	Fx.sparks(get_parent(), to, col, 24, 160.0, 0.5)
+	Sfx.play("zap")
 
 func _dist_to_segment(p: Vector2, a: Vector2, b: Vector2) -> float:
 	var ab: Vector2 = b - a
@@ -283,18 +285,21 @@ func _dist_to_segment(p: Vector2, a: Vector2, b: Vector2) -> float:
 # --- the telegraphed moves (target = enemy cluster in serving, the Squire in boss) ---
 func _cast_meteor(center: Vector2) -> void:
 	_meteor_cd = METEOR_CD
+	Sfx.play("cast")
 	_play("attack"); _anim_lock = 0.4
 	_flash = 0.2; _flash_col = FIRE
 	_telegraph_circle(center, METEOR_RADIUS, METEOR_DELAY, FIRE, base_damage * power_mult * METEOR_POWER, hostile)
 
 func _cast_nova() -> void:
 	_nova_cd = NOVA_CD
+	Sfx.play("cast")
 	_play("attack"); _anim_lock = 0.35
 	_flash = 0.2; _flash_col = HOLY
 	_telegraph_circle(global_position, NOVA_RADIUS, NOVA_DELAY, HOLY, base_damage * power_mult * NOVA_POWER, hostile)
 
 func _cast_shower(center: Vector2) -> void:
 	_shower_cd = SHOWER_CD
+	Sfx.play("cast")
 	_play("attack"); _anim_lock = 0.4
 	_flash = 0.2; _flash_col = FIRE
 	var dmg := base_damage * power_mult * SHOWER_POWER
@@ -305,6 +310,7 @@ func _cast_shower(center: Vector2) -> void:
 
 func _cast_beam(center: Vector2) -> void:
 	_beam_cd = BEAM_CD
+	Sfx.play("cast")
 	_play("attack"); _anim_lock = 0.35
 	_flash = 0.2; _flash_col = ARC
 	var dmg := base_damage * power_mult * BEAM_POWER
@@ -314,6 +320,7 @@ func _cast_beam(center: Vector2) -> void:
 
 func _cast_charge(target_pos: Vector2) -> void:
 	_charge_cd = CHARGE_CD
+	Sfx.play("cast")
 	_flash = 0.2; _flash_col = CHARGE_COL
 	var from := global_position
 	var to := Game.clamp_to_arena(target_pos, RADIUS)
@@ -357,6 +364,7 @@ func _cast_smite() -> void:
 	if targets.is_empty():
 		return
 	_smite_cd = SMITE_CD
+	Sfx.play("cast")
 	_flash = 0.2; _flash_col = ARC
 	var origin := global_position + Vector2(0, -40)
 	var dmg := base_damage * power_mult * SMITE_POWER
@@ -448,6 +456,7 @@ func _boss_abilities(sq: Squire, dist: float) -> void:
 
 func _nuke(sq: Squire) -> void:
 	_nuke_cd = NUKE_CD
+	Sfx.play("cast")
 	_flash = 0.25
 	_flash_col = Color(1.0, 0.5, 0.1)
 	_telegraph_circle(sq.global_position, NUKE_RADIUS, NUKE_DELAY, Color(1.0, 0.4, 0.1), _boss_damage() * NUKE_POWER, true)
@@ -455,12 +464,14 @@ func _nuke(sq: Squire) -> void:
 # --- gifts from the squire ---
 func receive_genuine_potion() -> void:
 	hp = minf(_eff_max_hp(), hp + GENUINE_HEAL)
+	Sfx.play("princess_drink")
 	_flash = 0.25
 	_flash_col = Color(0.4, 1.0, 0.5)
 	_say_thanks(false)
 
 func receive_genuine_weapon() -> void:
 	power_mult = minf(1.6, power_mult + GENUINE_POWER)
+	Sfx.play("princess_arm")
 	_flash = 0.25
 	_flash_col = Color(1.0, 0.9, 0.4)
 	_say_thanks(false)
@@ -470,6 +481,7 @@ func receive_cursed_potion() -> void:
 	hp_penalty = minf(HP_PENALTY_CAP, hp_penalty + CURSE_HP_PEN)
 	regen_mult = maxf(0.2, regen_mult - CURSE_REGEN)
 	hp -= CURSE_SIP
+	Sfx.play("princess_drink")
 	if hp <= 0.0:
 		_on_death()
 		return
@@ -480,6 +492,7 @@ func receive_cursed_potion() -> void:
 func receive_cursed_weapon() -> void:
 	power_mult = maxf(0.25, power_mult - CURSE_POWER)
 	base_attack_cd = minf(1.2, base_attack_cd + 0.04)
+	Sfx.play("princess_arm")
 	_flash = 0.25
 	_flash_col = Color(0.6, 0.2, 0.8)
 	_say_thanks(true)
@@ -503,6 +516,7 @@ func _on_death() -> void:
 		return
 	_dead = true
 	hp = 0.0
+	Sfx.play("player_die")                  # her fall is a big moment — use the heavier death cue
 	_play("death")
 	_anim_lock = 999.0
 	if _game:
@@ -511,6 +525,7 @@ func _on_death() -> void:
 # --- progression / betrayal ---
 func level_up() -> void:
 	level += 1
+	Sfx.play("levelup")
 	max_hp += 25.0
 	hp = minf(_eff_max_hp(), hp + 40.0)
 	base_damage += 5.0
@@ -520,6 +535,7 @@ func level_up() -> void:
 
 func become_boss() -> void:
 	hostile = true
+	Sfx.play("betray_roar")
 	_flash = 0.6
 	_flash_col = Color(1.0, 0.2, 0.2)
 	_play("hurt")

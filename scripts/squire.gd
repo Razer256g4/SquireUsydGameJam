@@ -137,6 +137,7 @@ func _try_dash() -> void:
 	if _dash_time > 0.0 or stamina < DASH_COST:
 		return
 	stamina -= DASH_COST
+	Sfx.play("dash")
 	_dash_time = DASH_TIME
 	_dash_dir = _read_move()
 	if _dash_dir == Vector2.ZERO:
@@ -155,6 +156,7 @@ func _tip_off() -> void:
 		return
 	stamina -= TIP_COST
 	tip_cd = TIP_CD
+	Sfx.play("tipoff")
 	for n in get_tree().get_nodes_in_group("monsters"):
 		(n as Monster).enrage()
 	if _game and _game.phase == "serving":
@@ -178,6 +180,7 @@ func _try_pickup() -> void:
 		if global_position.distance_to(p.global_position) <= RADIUS + p.radius + 4.0:
 			carry = p.kind
 			cursed = false
+			Sfx.play("pickup")
 			p.queue_free()
 			return
 
@@ -196,6 +199,7 @@ func _try_hand() -> void:
 		if cursed: pr.receive_cursed_weapon()
 		else: pr.receive_genuine_weapon()
 	if cursed:
+		Sfx.play("gift_curse")          # ominous extra cue; the sip/arm sound plays on the Princess
 		_game.sabotage_suspicion()
 	else:
 		_game.help_resets_suspicion()
@@ -215,10 +219,12 @@ func take_damage(_d: float) -> void:
 	_pop_hit()
 	if hp <= 0.0:
 		hp = 0.0
+		Sfx.play("player_die")
 		_play("death")
 		if _game:
 			_game.lose()
 	else:
+		Sfx.play("player_hurt")
 		_play("hurt")
 
 func _draw() -> void:
