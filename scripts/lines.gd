@@ -117,6 +117,23 @@ const INTERLUDE_SQUIRE := [
 	"Reward me? Oh, I'm counting on the throne.",
 ]
 
+# --- escalating Princess suspicion (paced by Game._run_suspicion_barks) -------
+## DOUBT stage (~40%+): she voices unease but hasn't turned yet.
+const DOUBT_PRINCESS := [
+	"Squire... why aren't you fighting beside me?",
+	"These monsters knew our plans. How?",
+	"You hang back so often lately.",
+	"My strength keeps slipping. Curious.",
+	"You flinch every time I'm struck. Why?",
+]
+## FRIENDLY_FIRE stage (~70%+): her attacks can now catch you, and she says so.
+const ACCUSE_PRINCESS := [
+	"Stay out of my reach if you value your skin.",
+	"Mind the blast, squire — I won't aim around you.",
+	"I'm watching you now. Closely.",
+	"One more 'accident' and we'll have words.",
+]
+
 # --- the Angel of Retribution (divine punishment for serial sabotage) --------
 const ANGEL_SQUIRE := [
 	"I can explain. (I cannot.)",

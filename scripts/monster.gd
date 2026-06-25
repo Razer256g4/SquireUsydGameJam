@@ -62,12 +62,12 @@ func configure(wave: int) -> void:
 	match kind:
 		"scout":
 			max_hp = 18.0; speed = 135.0; damage = 6.0; attack_cd = 0.8
-			radius = 24.0; scale_f = 3.4; tint = Color(0.7, 0.95, 1.0); prefers_squire = true
-			score_value = 12; drop_chance = 0.12
+			radius = 24.0; scale_f = 3.4; tint = Color(0.85, 0.92, 1.0); prefers_squire = true
+			score_value = 12; drop_chance = 0.12      # cool tint = the quick "spectral wolf" scout
 		"brute":
 			max_hp = 95.0; speed = 42.0; damage = 18.0; attack_cd = 1.3
-			radius = 46.0; scale_f = 5.8; tint = Color(1.0, 0.6, 0.55); prefers_squire = false
-			score_value = 30; drop_chance = 0.45
+			radius = 46.0; scale_f = 5.8; tint = Color(1.0, 0.86, 0.8); prefers_squire = false
+			score_value = 30; drop_chance = 0.45      # near-natural so the werebear reads brown, not red
 		"minion":   # the "67" gag swarm: tiny, weak, fast, despawns on its own
 			max_hp = 6.0; speed = 150.0; damage = 3.0; attack_cd = 0.7
 			radius = 14.0; scale_f = 2.2; tint = Color(0.95, 0.8, 1.0); prefers_squire = false
@@ -84,12 +84,19 @@ func configure(wave: int) -> void:
 	damage *= pow(Game.WAVE_DMG_GROWTH, wave)
 	hp = max_hp
 
-	# Protestors are people, not monsters — use the human (Soldier) sheet. The
-	# Soldier body sits slightly higher in its 100px frame than the Orc, so its
-	# overlay row uses the same content-top (39) the Princess/Squire do.
-	var human := kind == "protestor"
+	# Each kind gets its own creature from the Full pack so a wave reads as a varied
+	# horde, not one recoloured orc. `content_top` is the top edge of the visible body
+	# inside the 100px frame (differs per creature) so the HP bar floats just above it.
+	var frames: SpriteFrames
+	var content_top := 42.0
+	match kind:
+		"scout":      frames = Anim.werewolf(); content_top = 46.0   # lean, hunched predator
+		"brute":      frames = Anim.werebear(); content_top = 38.0   # towering bruiser
+		"minion":     frames = Anim.slime();    content_top = 56.0   # tiny blob, sits low
+		"protestor":  frames = Anim.soldier();  content_top = 39.0   # human peasant
+		_:            frames = Anim.orc();       content_top = 42.0   # grunt baseline
 	_spr = AnimatedSprite2D.new()
-	_spr.sprite_frames = Anim.soldier() if human else Anim.orc()
+	_spr.sprite_frames = frames
 	_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_spr.scale = Vector2(scale_f, scale_f)
 	_spr.offset = Vector2(0, -6)        # feet sit on the node origin
@@ -98,7 +105,7 @@ func configure(wave: int) -> void:
 	add_child(_spr)
 	_base_scale = Vector2(scale_f, scale_f)
 	_play("idle")
-	_overlay_y = overlay_y(39.0 if human else 42.0, scale_f)
+	_overlay_y = overlay_y(content_top, scale_f)
 
 func _process(delta: float) -> void:
 	if _game and _game.phase != "serving" and _game.phase != "boss":

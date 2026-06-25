@@ -41,18 +41,35 @@ const BOSS_REINFORCE_INTERVAL := 3.5         # boss: fresh defectors keep arrivi
 const BOSS_REINFORCE_COUNT := 2
 const BOSS_ALLY_CAP := 14                     # ...up to this cap, so she can never fully wipe them
 
-# --- suspicion economy (EXPONENTIAL: consecutive sabotage spikes fast; a single
-#     genuine gift RESETS it to zero) ---
+# --- suspicion economy (RATCHET model: never falls back to zero) ---
+# Each sabotage SPIKES suspicion (exponential within a streak) AND raises a permanent
+# DOUBT FLOOR. A genuine gift calms suspicion down toward that floor but never below it,
+# and a slow ambient CREEP nudges it up over time — so your cover wears thin for good.
 const SUSPICION_MAX := 100.0
 const SUS_BASE := 8.0       # suspicion from the first sabotage in a streak
 const SUS_GROWTH := 1.6     # each consecutive sabotage adds this much MORE (exponential)
+const SUS_CREEP := 0.35     # ambient suspicion/sec — slow; idling alone reaches 100 in ~5 min
+const FLOOR_PER_SABOTAGE := 4.0   # permanent floor raised per sabotage (~half a fresh spike)
+const FLOOR_GROWTH := 1.18        # later sabotages scar the floor a little harder
+const FLOOR_CAP := 82.0           # floor ALONE never reaches 100 — betrayal stays earned, not automatic
+const CALM_AMOUNT := 26.0         # a genuine gift drains this much, stopping at the floor
+const MINOR_SUS := 4.0            # tip-off (E) / scheme (Q): small flat suspicion — they're cooldown-gated
+const MINOR_FLOOR := 1.5          # ...and only a slight permanent mark on the floor
+
+# Staged consequences as suspicion climbs (read by the Princess + HUD).
+enum Stage { OBLIVIOUS, DOUBT, FRIENDLY_FIRE, BETRAYED }
+const STAGE_DOUBT := 0.40   # she starts voicing suspicion ("why aren't you fighting?")
+const STAGE_FF := 0.70      # her area attacks "accidentally" start catching you
+const BARK_INTERVAL := Vector2(7.0, 11.0)   # spacing of her escalating suspicion barks
 
 # --- runtime state ---
 var phase := "serving"            # "serving" | "boss" | "won" | "lost"
 var score := 0
 var wave := 0
 var suspicion := 0.0
+var doubt_floor := 0.0           # suspicion can never fall below this; ratchets up with each sabotage
 var cursed_streak := 0            # consecutive sabotages since the last genuine gift
+var _bark_timer := 6.0           # paces the Princess's escalating suspicion barks
 var monsters_to_spawn := 0
 var wave_state := "intermission"  # "intermission" | "spawning" | "fighting" (serving only)
 var phase_timer := FIRST_INTERMISSION
@@ -139,8 +156,12 @@ func _process(delta: float) -> void:
 
 # --- phase 1: serving ---
 func _serving_process(delta: float) -> void:
+	# Ambient creep, clamped up to a freshly-raised floor so you can never sit below
+	# your own track record of treachery.
+	suspicion = clampf(maxf(suspicion, doubt_floor) + SUS_CREEP * delta, 0.0, SUSPICION_MAX)
 	_run_waves(delta)
 	_run_pickups(delta)
+	_run_suspicion_barks(delta)
 	if suspicion >= SUSPICION_MAX:
 		_betray()
 
@@ -243,16 +264,52 @@ func lose(cause := "") -> void:
 	hud.update_state(self)      # final snapshot so the HP pips show the lethal hit (0 left), not a stale 1
 	hud.show_end(false, score, wave, cause)
 
-## A sabotage (cursed gift or tip-off) raises suspicion on an exponential curve:
-## the longer the streak since your last genuine gift, the bigger each spike.
+## A sabotage (cursed gift or tip-off) spikes suspicion on an exponential curve AND
+## permanently ratchets up the doubt floor — the longer the streak since your last
+## genuine gift, the bigger both bites.
 func sabotage_suspicion() -> void:
 	suspicion = clampf(suspicion + SUS_BASE * pow(SUS_GROWTH, cursed_streak), 0.0, SUSPICION_MAX)
+	doubt_floor = minf(FLOOR_CAP, doubt_floor + FLOOR_PER_SABOTAGE * pow(FLOOR_GROWTH, cursed_streak))
 	cursed_streak += 1
 
-## A genuine gift fully allays her suspicion and resets the streak.
-func help_resets_suspicion() -> void:
-	suspicion = 0.0
+## A minor stir — tip-off (E) or scheme (Q). They're cooldown-gated, so each only
+## nudges suspicion a touch and barely ratchets the floor, and never feeds the streak:
+## the exponential + the Angel of Retribution stay reserved for deliberate cursed gifts.
+func minor_suspicion() -> void:
+	suspicion = clampf(suspicion + MINOR_SUS, 0.0, SUSPICION_MAX)
+	doubt_floor = minf(FLOOR_CAP, doubt_floor + MINOR_FLOOR)
+
+## A genuine gift calms her — but only down to the doubt floor, never to zero — and
+## resets the streak (so the next spike starts small and the Angel stands down).
+func help_calms_suspicion() -> void:
+	suspicion = maxf(doubt_floor, suspicion - CALM_AMOUNT)
 	cursed_streak = 0
+
+## Which escalation rung the suspicion meter is on (drives Princess behaviour + HUD).
+func suspicion_stage() -> int:
+	if phase == "boss":
+		return Stage.BETRAYED
+	var r := suspicion / SUSPICION_MAX
+	if r >= STAGE_FF:
+		return Stage.FRIENDLY_FIRE
+	if r >= STAGE_DOUBT:
+		return Stage.DOUBT
+	return Stage.OBLIVIOUS
+
+## Periodic Princess barks that escalate with the suspicion stage: she voices growing
+## doubt, then openly threatens you once her attacks can catch you.
+func _run_suspicion_barks(delta: float) -> void:
+	_bark_timer -= delta
+	if _bark_timer > 0.0:
+		return
+	_bark_timer = rng.randf_range(BARK_INTERVAL.x, BARK_INTERVAL.y)
+	if not hud:
+		return
+	match suspicion_stage():
+		Stage.DOUBT:
+			hud.princess_say(Lines.pick(Lines.DOUBT_PRINCESS))
+		Stage.FRIENDLY_FIRE:
+			hud.princess_say(Lines.pick(Lines.ACCUSE_PRINCESS))
 
 func on_monster_killed(m: Monster) -> void:
 	score += m.score_value

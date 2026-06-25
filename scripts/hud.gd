@@ -61,6 +61,10 @@ var _sus_fill: StyleBoxFlat       # fill colour (green -> red)
 var _sus_pct: Label
 var _sus_legend: Label
 var _boss_banner: Label           # replaces the meter in the boss phase
+var _sus_floor_marker: ColorRect  # tick marking the doubt floor — suspicion can't be calmed below it
+
+# --- run info (top-left WAVE + SCORE readout) ---
+var _run_info: Label
 
 # --- princess ---
 var _pr_title: Label
@@ -129,6 +133,7 @@ func _ready() -> void:
 	_build_ability_bar()
 	_build_carry()
 	_build_dividers()      # subtle compartment separators (after content, drawn over the gap)
+	_build_runinfo()
 	_build_banners()
 	_build_end()
 
@@ -307,6 +312,16 @@ func _build_suspicion() -> void:
 	_sus_bar.offset_top = 44
 	_sus_bar.offset_bottom = 64
 	_dock.add_child(_sus_bar)
+
+	# Doubt-floor tick on the meter: the minimum your treachery has permanently worn her
+	# trust down to — suspicion can never be calmed below it. Positioned live in update_state.
+	_sus_floor_marker = ColorRect.new()
+	_sus_floor_marker.color = Color(1.0, 0.32, 0.32, 0.9)
+	_sus_floor_marker.anchor_top = 0.0
+	_sus_floor_marker.anchor_bottom = 1.0
+	_sus_floor_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_sus_floor_marker.visible = false
+	_sus_bar.add_child(_sus_floor_marker)
 
 	_sus_legend = _label("how close she is to catching you", 15, Color(1, 1, 1, 0.8))
 	_sus_legend.offset_left = PAD
@@ -566,6 +581,20 @@ func _line(x: float, y: float, w: float, h: float, col: Color) -> void:
 	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_dock.add_child(r)
 
+# ---------------------------------------------------------------- RUN INFO
+# A quiet top-left readout of the two run-defining numbers (no box, just outlined
+# text) so "what wave am I on / how am I scoring" is always answerable mid-run.
+# Current-run only — resets with R like everything else.
+func _build_runinfo() -> void:
+	_run_info = _label("WAVE 1     SCORE 0", 20, Color(1.0, 0.93, 0.7), true)
+	_run_info.offset_left = 18
+	_run_info.offset_top = 12
+	_run_info.offset_right = 380
+	_run_info.offset_bottom = 40
+	_run_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_run_info.modulate.a = 0.92
+	_root.add_child(_run_info)
+
 # ---------------------------------------------------------------- BANNERS
 func _build_banners() -> void:
 	_announce = _label("", 34, Color.WHITE, true)
@@ -749,6 +778,9 @@ func update_state(game: Game) -> void:
 	var ratio: float = clampf(game.suspicion / Game.SUSPICION_MAX, 0.0, 1.0)
 	var boss := game.phase == "boss"
 
+	if _run_info:
+		_run_info.text = "WAVE %d     SCORE %d" % [game.wave, game.score]
+
 	# suspicion / boss banner
 	_sus_bar.visible = not boss
 	_sus_pct.visible = not boss
@@ -762,7 +794,23 @@ func update_state(game: Game) -> void:
 		var hot: float = clampf((ratio - 0.45) / 0.55, 0.0, 1.0)
 		_dock_sb.border_color = Color(0.64, 0.47, 0.30, 0.95).lerp(Color(1.0, 0.15, 0.2, 1.0), hot)
 		_dock_sb.set_border_width_all(int(round(3.0 + hot * 5.0)))
-		_sus_legend.text = "SHE'S ONTO YOU" if ratio >= 0.85 else "how close she is to catching you"
+		# doubt-floor tick: the un-calmable minimum, anchored so it tracks any bar width
+		var floor_ratio: float = clampf(game.doubt_floor / Game.SUSPICION_MAX, 0.0, 1.0)
+		_sus_floor_marker.visible = floor_ratio > 0.01
+		_sus_floor_marker.anchor_left = floor_ratio
+		_sus_floor_marker.anchor_right = floor_ratio
+		_sus_floor_marker.offset_left = -2.0
+		_sus_floor_marker.offset_right = 2.0
+		# legend reframed by stage: it's BOTH her catching you AND your betrayal trigger
+		match game.suspicion_stage():
+			Game.Stage.OBLIVIOUS:
+				_sus_legend.text = "she trusts you — fill this to betray her"
+			Game.Stage.DOUBT:
+				_sus_legend.text = "SHE'S GETTING SUSPICIOUS"
+			Game.Stage.FRIENDLY_FIRE:
+				_sus_legend.text = "DANGER — her attacks can hit you now"
+			_:
+				_sus_legend.text = "SHE'S ONTO YOU"
 
 	# princess
 	var pr := game.princess

@@ -118,6 +118,73 @@ static func nova(parent: Node, pos: Vector2, radius: float, col: Color) -> void:
 	ring(parent, pos, radius * 0.6, Color(1, 1, 1, 0.9), 0.4, 6.0)
 	sparks(parent, pos, col, 50, radius * 1.6, 0.6)
 
+# --- dash juice -------------------------------------------------------------
+## A directional puff of dust kicked out behind a dash. `dir` is the dash heading;
+## the dust sprays the OPPOSITE way (like grit off a sprinter's heels).
+static func dash_dust(parent: Node, pos: Vector2, dir: Vector2, col := Color(0.82, 0.86, 0.96)) -> void:
+	var p := CPUParticles2D.new()
+	p.texture = _dot_tex()
+	p.position = pos
+	p.z_index = 9                         # behind the squire (z_index 10), above the floor
+	p.one_shot = true
+	p.explosiveness = 0.9
+	p.amount = 16
+	p.lifetime = 0.4
+	p.direction = (-dir).normalized() if dir != Vector2.ZERO else Vector2.UP
+	p.spread = 38.0
+	p.gravity = Vector2.ZERO
+	p.initial_velocity_min = 70.0
+	p.initial_velocity_max = 190.0
+	p.damping_min = 90.0
+	p.damping_max = 170.0
+	p.scale_amount_min = 2.0
+	p.scale_amount_max = 4.5
+	var g := Gradient.new()
+	g.set_color(0, Color(col.r, col.g, col.b, 0.8))
+	g.set_color(1, Color(col.r, col.g, col.b, 0.0))
+	p.color_ramp = g
+	parent.add_child(p)
+	p.emitting = true
+	p.get_tree().create_timer(0.7).timeout.connect(p.queue_free)
+
+## A single fading "ghost" of a sprite frame — string several together along a dash
+## for a motion-trail. Caller passes the current frame texture + the sprite's
+## offset/scale/flip so the echo lines up exactly with the character.
+static func afterimage(parent: Node, tex: Texture2D, pos: Vector2, offset: Vector2, scale: Vector2, flip_h: bool, col := Color(0.7, 1.0, 0.85, 0.5), life := 0.28) -> void:
+	if tex == null:
+		return
+	var s := Sprite2D.new()
+	s.texture = tex
+	s.position = pos
+	s.offset = offset
+	s.scale = scale
+	s.flip_h = flip_h
+	s.modulate = col
+	s.z_index = 9                         # just under the live squire so it reads as a wake
+	s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	parent.add_child(s)
+	var tw := s.create_tween()
+	tw.tween_property(s, "modulate:a", 0.0, life)
+	tw.tween_callback(s.queue_free)
+
+## A one-shot animated-sprite effect (e.g. the Wizard's spell art) played once at
+## `pos`, then freed. Unlike the rest of Fx this one IS art-driven — caller supplies
+## the SpriteFrames + clip name (see Anim.wizard_fx()).
+static func sprite_burst(parent: Node, pos: Vector2, frames: SpriteFrames, clip: String, scale := 2.0, col := Color.WHITE, z := 49) -> void:
+	if frames == null or not frames.has_animation(clip):
+		return
+	var s := AnimatedSprite2D.new()
+	s.sprite_frames = frames
+	s.animation = clip
+	s.position = pos
+	s.scale = Vector2(scale, scale)
+	s.modulate = col
+	s.z_index = z
+	s.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	parent.add_child(s)
+	s.play(clip)
+	s.animation_finished.connect(s.queue_free)
+
 # Soft round dot used by every particle burst (built once, cached).
 static var _dot: Texture2D
 static func _dot_tex() -> Texture2D:

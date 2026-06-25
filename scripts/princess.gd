@@ -139,7 +139,7 @@ func _ready() -> void:
 	_game = get_tree().get_first_node_in_group("game") as Game
 
 	_spr = AnimatedSprite2D.new()
-	_spr.sprite_frames = Anim.soldier()
+	_spr.sprite_frames = Anim.swordsman()
 	_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_spr.scale = Vector2(SCALE, SCALE)
 	_spr.offset = Vector2(0, -6)        # feet sit on the node origin
@@ -232,6 +232,20 @@ func _try_abilities(target: Monster) -> void:
 		return
 	_gcd = ABILITY_GCD
 
+## True when her AREA attacks should also hurt the Squire: always in the boss fight,
+## and — once suspicion crosses the FRIENDLY_FIRE stage — she stops aiming around you.
+func _aoe_hits_squire() -> bool:
+	return hostile or (_game != null and _game.suspicion_stage() >= Game.Stage.FRIENDLY_FIRE)
+
+## Roughly where a cast "comes from" — her hands, a touch above the node origin.
+func _cast_origin() -> Vector2:
+	return global_position + Vector2(0, -30)
+
+## Layer the Wizard's spell art onto a cast so her Swordsman body still reads as a
+## caster: orange fireball orb for fire spells, blue arcane burst for arc/holy ones.
+func _spell_vfx(fire: bool, at: Vector2, scale := 1.9) -> void:
+	Fx.sprite_burst(get_parent(), at, Anim.wizard_fx(), "orb" if fire else "burst", scale)
+
 func _attack_cleave() -> void:
 	_cd = base_attack_cd
 	Sfx.play("swing")
@@ -242,6 +256,11 @@ func _attack_cleave() -> void:
 		var m := n as Monster
 		if m.faction == "enemy" and global_position.distance_to(m.global_position) <= attack_range + m.radius:
 			m.take_damage(dmg)
+	# Once her suspicion runs hot she swings near you too — a glancing half-hit if you crowd her.
+	if not hostile and _aoe_hits_squire():
+		var sq := _squire()
+		if sq and global_position.distance_to(sq.global_position) <= attack_range + Squire.RADIUS:
+			sq.take_damage(dmg * 0.5)
 	Fx.slash(get_parent(), global_position + Vector2(0, -10), _facing, attack_range, Color(0.95, 0.97, 1.0))
 
 # --- telegraph scheduling (show the danger zone now, strike after `delay`) ---
@@ -294,37 +313,41 @@ func _dist_to_segment(p: Vector2, a: Vector2, b: Vector2) -> float:
 func _cast_meteor(center: Vector2) -> void:
 	_meteor_cd = METEOR_CD
 	Sfx.play("cast")
-	_play("attack"); _anim_lock = 0.4
+	_play("attack2"); _anim_lock = 0.8        # big overhead windup for the heavy bomb
 	_flash = 0.2; _flash_col = FIRE
-	_telegraph_circle(center, METEOR_RADIUS, METEOR_DELAY, FIRE, base_damage * power_mult * METEOR_POWER, hostile)
+	_spell_vfx(true, _cast_origin(), 2.2)
+	_telegraph_circle(center, METEOR_RADIUS, METEOR_DELAY, FIRE, base_damage * power_mult * METEOR_POWER, _aoe_hits_squire())
 
 func _cast_nova() -> void:
 	_nova_cd = NOVA_CD
 	Sfx.play("cast")
-	_play("attack"); _anim_lock = 0.35
+	_play("attack3"); _anim_lock = 0.6        # spinning flourish as the burst goes off
 	_flash = 0.2; _flash_col = HOLY
-	_telegraph_circle(global_position, NOVA_RADIUS, NOVA_DELAY, HOLY, base_damage * power_mult * NOVA_POWER, hostile)
+	_spell_vfx(false, global_position, 3.2)   # arcane burst centred on her, matching the nova
+	_telegraph_circle(global_position, NOVA_RADIUS, NOVA_DELAY, HOLY, base_damage * power_mult * NOVA_POWER, _aoe_hits_squire())
 
 func _cast_shower(center: Vector2) -> void:
 	_shower_cd = SHOWER_CD
 	Sfx.play("cast")
-	_play("attack"); _anim_lock = 0.4
+	_play("attack2"); _anim_lock = 0.8        # long cast for the staggered meteor barrage
 	_flash = 0.2; _flash_col = FIRE
+	_spell_vfx(true, _cast_origin(), 2.2)
 	var dmg := base_damage * power_mult * SHOWER_POWER
 	for i in SHOWER_COUNT:
 		var off := Vector2(randf_range(-SHOWER_SPREAD, SHOWER_SPREAD), randf_range(-SHOWER_SPREAD, SHOWER_SPREAD))
 		var spot := Game.clamp_to_arena(center + off, SHOWER_RADIUS)
-		_telegraph_circle(spot, SHOWER_RADIUS, SHOWER_DELAY + i * SHOWER_STAGGER, FIRE, dmg, hostile)
+		_telegraph_circle(spot, SHOWER_RADIUS, SHOWER_DELAY + i * SHOWER_STAGGER, FIRE, dmg, _aoe_hits_squire())
 
 func _cast_beam(center: Vector2) -> void:
 	_beam_cd = BEAM_CD
 	Sfx.play("cast")
-	_play("attack"); _anim_lock = 0.35
+	_play("attack3"); _anim_lock = 0.6        # sweeping flourish for the cross-beam
 	_flash = 0.2; _flash_col = ARC
+	_spell_vfx(false, _cast_origin(), 2.0)
 	var dmg := base_damage * power_mult * BEAM_POWER
 	var h := BEAM_LEN * 0.5
-	_telegraph_line(center + Vector2(-h, 0), center + Vector2(h, 0), BEAM_HALF_W, BEAM_DELAY, ARC, dmg, hostile)
-	_telegraph_line(center + Vector2(0, -h), center + Vector2(0, h), BEAM_HALF_W, BEAM_DELAY, ARC, dmg, hostile)
+	_telegraph_line(center + Vector2(-h, 0), center + Vector2(h, 0), BEAM_HALF_W, BEAM_DELAY, ARC, dmg, _aoe_hits_squire())
+	_telegraph_line(center + Vector2(0, -h), center + Vector2(0, h), BEAM_HALF_W, BEAM_DELAY, ARC, dmg, _aoe_hits_squire())
 
 func _cast_charge(target_pos: Vector2) -> void:
 	_charge_cd = CHARGE_CD
@@ -375,6 +398,7 @@ func _cast_smite() -> void:
 	Sfx.play("cast")
 	_flash = 0.2; _flash_col = ARC
 	var origin := global_position + Vector2(0, -40)
+	_spell_vfx(false, origin, 1.8)            # arcane spark crackles at her hand before the bolts
 	var dmg := base_damage * power_mult * SMITE_POWER
 	for m in targets:
 		var victim := m as Monster

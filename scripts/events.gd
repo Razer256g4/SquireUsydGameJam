@@ -71,7 +71,7 @@ func trigger_scheme() -> bool:
 	if _scheme_cd > 0.0 or not _game or _game.phase != "serving":
 		return false
 	_scheme_cd = SCHEME_CD
-	_game.sabotage_suspicion()
+	_game.minor_suspicion()
 	if _game.hud:
 		_game.hud.squire_say(Lines.pick(Lines.SCHEME_SQUIRE))
 	_run(SCHEMES[rng.randi() % SCHEMES.size()])

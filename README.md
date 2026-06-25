@@ -28,11 +28,12 @@ You can only carry **one item at a time**. Walk over loot to pick it up.
 - **Weapon** → handed (or yeeted with `Ctrl`) upgrades the Princess: more damage, range,
   attack speed, and at weapon Lv.3+ she starts **cleaving** all nearby monsters.
 
-## Monsters (orcs)
+## Monsters
 
 - **Grunt** — standard orc, chases the Princess.
-- **Scout** (pale, small, fast) — fragile but quick, likes to harass *you*.
-- **Brute** (big, reddish) — very slow, very tanky, hits like a truck. Best loot drops.
+- **Scout** — a quick spectral **werewolf**; fragile but fast, likes to harass *you*.
+- **Brute** — a towering **werebear**; very slow, very tanky, hits like a truck. Best loot drops.
+- Plus a **slime** "minion" swarm and human "protestor" peasants stirred up by your schemes.
 
 Each cleared room raises the difficulty. Survive as long as you can for a high score.
 
@@ -40,18 +41,21 @@ Each cleared room raises the difficulty. Survive as long as you can for a high s
 
 Uses two free packs you dropped into the project:
 
-- **Tiny RPG Character Asset Pack** (`tiny rpg/`) — the **Soldier** sheet for the Princess
-  and the Squire, the **Orc** sheet for monsters, and the arrow for thrown weapons.
+- **Tiny RPG Character Asset Pack** (`tiny rpg/`) — sprites for every character. From the
+  *Full 20-character* pack (copied into `tiny rpg/full/`): **Swordsman** (Princess), **Priest**
+  (Squire), **Werewolf** (scout), **Werebear** (brute), **Slime** (minion), and the **Wizard**'s
+  magic-projectile art layered onto the Princess's spell casts. From the free pack: the **Orc**
+  (grunt) and **Soldier** (human "protestor") sheets, plus the arrow for thrown weapons.
 - **Tiny Swords** (`tiny  swords terrain/`) — buildings used as darkened backdrop scenery.
 - **RPG UI pack by Franuka** (`assets/ui/franuka/`) — the HUD skin (item-slot ability bar,
   pixel fonts, panels, banners, icons). © Franuka — used under its licence; see
   <https://franuka.itch.io/rpg-ui-pack>. *(Required attribution — do not remove.)*
 
-> **Note:** the free character pack only ships a *Soldier* and an *Orc*, so the Princess and
-> the Squire currently share the Soldier sprite — the Squire is scaled down and tinted green,
-> and the Princess wears a floating crown so you can tell them apart. Drop a dedicated
-> princess sheet into `scripts/anim.gd` (`Anim.soldier()` → a new `Anim.princess()`) to
-> give her a unique look.
+> **Note:** the Princess (Swordsman) and the Squire (Priest) now have distinct sprites; the
+> Squire is still scaled down and tinted green, and the Princess wears a floating crown. The
+> Swordsman ships three attack clips that the Princess rotates through for her telegraphed
+> spells; the Priest's *heal* clip plays as a flourish when the Squire hands over a genuine
+> gift. To swap any character, point its `Anim.*()` call in `scripts/anim.gd` at another sheet.
 
 Animations are sliced from the 100×100 strip sheets at runtime in [scripts/anim.gd](scripts/anim.gd)
 (`SpriteFrames` built and cached in code) — no `.tres` resources to manage by hand.
@@ -77,8 +81,8 @@ scripts/
   game.gd              # arena, wave/room spawning, score, game state, scenery, HUD wiring
   actor.gd             # shared base: AnimatedSprite2D body + play/flip/overlay/timer helpers
   anim.gd              # builds + caches SpriteFrames from the Tiny RPG strip sheets
-  princess.gd          # Actor: the autonomous hero (Soldier sprite; targets/moves/attacks/upgrades)
-  squire.gd            # Actor: YOU (Soldier sprite) — movement, dash, stamina, carry, hand/drink/yeet
+  princess.gd          # Actor: the autonomous hero (Swordsman sprite; targets/moves/attacks/upgrades)
+  squire.gd            # Actor: YOU (Priest sprite) — movement, dash, stamina, carry, hand/drink/yeet
   monster.gd           # Actor: grunt / scout / brute orcs (Orc sprite) + death anim
   pickup.gd            # potion / weapon floor loot (procedural)
   weapon_throw.gd      # homing thrown-weapon projectile (arrow sprite, Ctrl yeet)

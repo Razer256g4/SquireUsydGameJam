@@ -30,7 +30,9 @@ var tip_cd := 0.0
 
 var _dash_time := 0.0
 var _dash_dir := Vector2.DOWN
+var _ghost_t := 0.0             # spacing timer for the dash afterimage trail
 var _hurt_cd := 0.0
+var _anim_lock := 0.0           # >0 while a one-shot clip (hurt / heal) plays out
 var _flash := 0.0
 var _flash_col := Color.RED
 var _overlay_y := 0.0
@@ -59,7 +61,7 @@ func _ready() -> void:
 	_game = get_tree().get_first_node_in_group("game") as Game
 
 	_spr = AnimatedSprite2D.new()
-	_spr.sprite_frames = Anim.soldier()
+	_spr.sprite_frames = Anim.priest()
 	_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_spr.scale = Vector2(SCALE, SCALE)
 	_spr.offset = Vector2(0, -6)        # feet sit on the node origin
@@ -88,6 +90,7 @@ func _process(delta: float) -> void:
 		return
 
 	_hurt_cd = _decay(_hurt_cd, delta)
+	_anim_lock = _decay(_anim_lock, delta)
 	_flash = _decay(_flash, delta)
 	tip_cd = _decay(tip_cd, delta)
 	_tick_speech(delta)
@@ -101,6 +104,11 @@ func _process(delta: float) -> void:
 		_dash_time -= delta
 		position += _dash_dir * DASH_SPEED * delta
 		moving = true
+		_ghost_t -= delta                 # lay down a fading echo every ~30ms of the dash
+		if _ghost_t <= 0.0:
+			_ghost_t = 0.03
+			var tex := _spr.sprite_frames.get_frame_texture(_spr.animation, _spr.frame)
+			Fx.afterimage(get_parent(), tex, global_position, _spr.offset, _base_scale, _spr.flip_h)
 	else:
 		position += input_dir * SPEED * delta
 		stamina = minf(MAX_STAMINA, stamina + STAMINA_REGEN * delta)
@@ -119,7 +127,8 @@ func _process(delta: float) -> void:
 		col.a = 0.55
 	_spr.modulate = col
 	_update_flip()
-	_play("walk" if moving else "idle")
+	if _anim_lock <= 0.0:           # let a hurt/heal one-shot finish before resuming locomotion
+		_play("walk" if moving else "idle")
 	_tick_pop(delta)
 	queue_redraw()
 
@@ -144,6 +153,8 @@ func _try_dash() -> void:
 	if _dash_dir == Vector2.ZERO:
 		_dash_dir = _facing
 	_hurt_cd = maxf(_hurt_cd, DASH_TIME + 0.05)   # i-frames through enemies
+	_ghost_t = 0.0                                 # start the afterimage trail immediately
+	Fx.dash_dust(get_parent(), global_position, _dash_dir)   # grit kicked out behind the burst
 
 func _toggle_curse() -> void:
 	if carry == "":
@@ -161,7 +172,7 @@ func _tip_off() -> void:
 	for n in get_tree().get_nodes_in_group("monsters"):
 		(n as Monster).enrage()
 	if _game and _game.phase == "serving":
-		_game.sabotage_suspicion()
+		_game.minor_suspicion()
 	_flash = 0.15
 	_flash_col = Color(1.0, 0.5, 0.2)
 
@@ -203,7 +214,8 @@ func _try_hand() -> void:
 		Sfx.play("gift_curse")          # ominous extra cue; the sip/arm sound plays on the Princess
 		_game.sabotage_suspicion()
 	else:
-		_game.help_resets_suspicion()
+		_game.help_calms_suspicion()
+		_play("heal"); _anim_lock = 0.5  # a pious little flourish to sell the loyal-servant act
 	carry = ""
 	cursed = false
 
@@ -229,7 +241,7 @@ func take_damage(_d: float) -> void:
 			_game.lose("queen" if _game.phase == "boss" else "")
 	else:
 		Sfx.play("player_hurt")
-		_play("hurt")
+		_play("hurt"); _anim_lock = 0.25     # hold the hurt clip so it's actually visible
 
 func _draw() -> void:
 	_draw_speech(_overlay_y)
