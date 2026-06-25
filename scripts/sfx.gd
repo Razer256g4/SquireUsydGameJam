@@ -70,6 +70,12 @@ static func _boot() -> void:
 	_install_master_limiter()
 	_holder = Node.new()
 	_holder.name = "SfxHolder"
+	# ALWAYS so audio survives a paused tree: the cutscene, the controls briefing and the
+	# pause menu all set get_tree().paused = true, and a holder left on the default INHERIT
+	# mode is paused with them — silencing menu music + UI clicks started while paused. ALWAYS
+	# keeps the players running, so the menu theme plays under the cutscene/briefing and the
+	# music keeps going while the game is paused.
+	_holder.process_mode = Node.PROCESS_MODE_ALWAYS
 	for _i in POOL_SIZE:
 		var p := AudioStreamPlayer.new()
 		p.bus = "SFX"
