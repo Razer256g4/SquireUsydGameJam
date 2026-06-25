@@ -27,11 +27,26 @@ const MASTER_CEILING_DB := -1.0             # limiter ceiling so the mix never c
 # (web-friendly size); the remaining CC0 placeholders are .ogg. Godot imports all three
 # natively, so the loader is format-agnostic — a clip resolves to the first ext present.
 const AUDIO_EXTS: Array[String] = [".ogg", ".mp3", ".wav"]
+const MUSIC_BED_DB := -7.0                  # serving/menu/boss bed level (under the SFX)
+# Suspicion-reactive serving score: tracks by ASCENDING suspicion band, each
+# {at: threshold 0..1, name}. serving_music(frac) crossfades up to the highest band the
+# meter has reached (and back down, with hysteresis), so the music sours calm -> tension
+# -> dread as she closes in. A quick dip-and-swap on one player (robust whether or not the
+# stems are sample-aligned), not a sustained simultaneous layer mix.
+const SERVING_BANDS := [
+	{"at": 0.0,  "name": "serving"},        # calm bed (commissioned "suspicion0-33")
+	{"at": 0.40, "name": "suspicion2"},     # tension — once she starts to doubt (~40%)
+	{"at": 0.85, "name": "suspicion3"},     # dread — final approach (betrayal hard-cuts to boss AT 100%,
+											#         so dread comes in at 85% to actually be heard)
+]
 
 static var _players: Array[AudioStreamPlayer] = []
 static var _music: AudioStreamPlayer = null
 static var _holder: Node = null             # parents the pool; lives under root across reloads
 static var _pending_music := ""             # track requested before the holder was in-tree
+static var _music_name := ""                # name of the track currently on _music
+static var _serving_band := -1              # active SERVING_BANDS index (-1 = not in the reactive serving score)
+static var _xfade: Tween = null             # in-flight crossfade tween (killed before any new music command)
 static var _next := 0                       # round-robin cursor
 static var _last := {}                      # key -> Time.get_ticks_msec() of last play
 static var _lib := {}                       # key -> Array[AudioStream]
@@ -115,20 +130,25 @@ static func play(key: String, pitch_var := 0.06, volume_db := 0.0) -> void:
 	p.play()
 
 # --- music ------------------------------------------------------------------
-## Loop a background track from assets/audio/music/<name>.ogg as a quiet bed.
-static func play_music(name: String, volume_db := -7.0) -> void:
+## Loop a background track from assets/audio/music/<name> as a quiet bed (hard cut).
+## Used for the standalone cues: menu / boss / (future victory, defeat). The serving
+## phase instead drives serving_music() for the suspicion-reactive crossfade.
+static func play_music(name: String, volume_db := MUSIC_BED_DB) -> void:
 	_boot()
 	if _music == null:
 		return
 	if not _music.is_inside_tree():
 		_pending_music = name               # holder attaches deferred; _start_pending_music() retries
 		return
+	_kill_xfade()                           # cancel any in-flight crossfade before a hard swap
+	_serving_band = -1                      # leaving the reactive serving score (menu/boss/etc.)
 	var path := _find("%s%s" % [MUSIC_DIR, name])
 	if path == "":
 		return
 	var stream := load(path) as AudioStream
 	if stream == null:
 		return
+	_music_name = name
 	if _music.stream == stream and _music.playing:
 		return                              # already on this track — don't restart
 	stream.set("loop", true)                # harmless no-op for stream types without a loop flag
@@ -136,7 +156,56 @@ static func play_music(name: String, volume_db := -7.0) -> void:
 	_music.volume_db = volume_db
 	_music.play()
 
+## Suspicion-reactive serving score. Call every serving-phase frame with suspicion/MAX
+## (0..1): keeps the serving music playing and crossfades to the band matching the meter,
+## with a little hysteresis so it doesn't flap on the boundary. Idempotent within a band.
+static func serving_music(frac: float) -> void:
+	_boot()
+	if _music == null or not _music.is_inside_tree():
+		return                              # not attached yet — the raw play_music start handles frame 1
+	var cur := maxi(0, _serving_band)
+	var target := cur
+	while target + 1 < SERVING_BANDS.size() and frac >= float(SERVING_BANDS[target + 1]["at"]):
+		target += 1                         # climb to the highest band the meter has reached
+	while target > 0 and frac < float(SERVING_BANDS[target]["at"]) - 0.05:
+		target -= 1                         # only step back down once clearly under the threshold
+	if target == _serving_band:
+		return
+	# Adopt an already-playing calm track (e.g. started raw after an R-restart) without a swap.
+	if _serving_band == -1 and target == 0 and _music_name == "serving" and _music.playing:
+		_serving_band = 0
+		return
+	_serving_band = target
+	_crossfade_music(String(SERVING_BANDS[target]["name"]))
+
+## Dip the current track out, swap streams, fade the new one in (~0.8 s total) — one player.
+static func _crossfade_music(name: String) -> void:
+	var path := _find("%s%s" % [MUSIC_DIR, name])
+	if path == "":
+		return
+	var stream := load(path) as AudioStream
+	if stream == null:
+		return
+	_kill_xfade()
+	_music_name = name
+	_xfade = _holder.create_tween()
+	if _music.playing:
+		_xfade.tween_property(_music, "volume_db", -40.0, 0.35)
+	_xfade.tween_callback(func() -> void:
+		stream.set("loop", true)
+		_music.stream = stream
+		_music.volume_db = -40.0
+		_music.play())
+	_xfade.tween_property(_music, "volume_db", MUSIC_BED_DB, 0.45)
+
+static func _kill_xfade() -> void:
+	if _xfade != null and _xfade.is_valid():
+		_xfade.kill()
+	_xfade = null
+
 static func stop_music() -> void:
+	_kill_xfade()
+	_serving_band = -1
 	if _music:
 		_music.stop()
 
