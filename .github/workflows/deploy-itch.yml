@@ -10,7 +10,7 @@ env:
   GODOT_RELEASE: "stable"
   EXPORT_PRESET: "Web"      # must match the preset name in export_presets.cfg
   ITCH_USER: "razer256g5"   # itch username (from https://razer256g5.itch.io/sqire)
-  ITCH_GAME: "sqire"        # project URL slug
+  ITCH_GAME: "squire"       # project URL slug (renamed from "sqire" 2026-06-25)
   ITCH_CHANNEL: "html5"
 
 jobs:
