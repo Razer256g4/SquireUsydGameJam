@@ -23,6 +23,11 @@ const DEFAULT_GAP := 45                     # fallback min-ms between two plays 
 const ROOT := "res://assets/audio/"
 const MUSIC_DIR := "res://assets/audio/music/"
 const MASTER_CEILING_DB := -1.0             # limiter ceiling so the mix never clips
+# Global SFX trim added on top of every per-key vol. The commissioned clips are mastered
+# hotter than the old Kenney placeholders the per-key gains were calibrated for, so the
+# whole SFX layer ran too loud — this pulls it down uniformly (the per-key BALANCE below is
+# preserved; this is the one knob for "all SFX too loud").
+const MIX_TRIM := -3.0
 # Accepted source formats, in preference order. The commissioned originals ship as .mp3
 # (web-friendly size); the remaining CC0 placeholders are .ogg. Godot imports all three
 # natively, so the loader is format-agnostic — a clip resolves to the first ext present.
@@ -126,7 +131,7 @@ static func play(key: String, pitch_var := 0.06, volume_db := 0.0) -> void:
 	_next = (_next + 1) % _players.size()
 	p.stream = clips[randi() % clips.size()] as AudioStream
 	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
-	p.volume_db = float(cfg.get("vol", 0.0)) + volume_db
+	p.volume_db = float(cfg.get("vol", 0.0)) + volume_db + MIX_TRIM
 	p.play()
 
 # --- music ------------------------------------------------------------------
@@ -301,9 +306,9 @@ static func _build_config() -> void:
 		"enemy_swing":    {"vol": -13.0, "gap": 90},
 		"enemy_hurt":     {"vol": -11.0, "gap": 60},
 		"enemy_die":      {"vol": -8.0,  "gap": 70},
-		"player_hurt":    {"vol": -4.0,  "gap": 110},
-		"player_die":     {"vol": -2.0,  "gap": 200},
-		"princess_fall":  {"vol": -1.0,  "gap": 400},   # one-shot; her fall is THE big reverent moment
+		"player_hurt":    {"vol": -7.0,  "gap": 110},
+		"player_die":     {"vol": -9.0,  "gap": 200},
+		"princess_fall":  {"vol": -8.0,  "gap": 400},   # one-shot; her fall is THE big reverent moment
 		"boom":           {"vol": -9.0,  "gap": 90},
 		"zap":            {"vol": -12.0, "gap": 75},
 		"cast":           {"vol": -16.0, "gap": 110},
@@ -319,7 +324,7 @@ static func _build_config() -> void:
 		"enrage":         {"vol": -10.0, "gap": 220},
 		"defect":         {"vol": -9.0,  "gap": 220},
 		# events / chaos — rarer, can be present
-		"explosion_big":  {"vol": -2.0,  "gap": 300},
+		"explosion_big":  {"vol": -9.0,  "gap": 300},
 		"crowd":          {"vol": -9.0,  "gap": 250},
 		"infighting":     {"vol": -8.0,  "gap": 250},
 		"swarm":          {"vol": -7.0,  "gap": 250},
@@ -328,11 +333,11 @@ static func _build_config() -> void:
 		# system / UI stings — sparse punctuation, allowed to read clearly
 		"wave_start":     {"vol": -7.0,  "gap": 200},
 		"wave_clear":     {"vol": -7.0,  "gap": 200},
-		"levelup":        {"vol": -8.0,  "gap": 150},
-		"betray_sting":   {"vol": -2.0,  "gap": 500},
-		"betray_roar":    {"vol": -6.0,  "gap": 500},
-		"win":            {"vol": -4.0,  "gap": 500},
-		"lose":           {"vol": -4.0,  "gap": 500},
+		"levelup":        {"vol": -9.0,  "gap": 150},
+		"betray_sting":   {"vol": -9.0,  "gap": 500},
+		"betray_roar":    {"vol": -9.0,  "gap": 500},
+		"win":            {"vol": -11.0, "gap": 500},
+		"lose":           {"vol": -11.0, "gap": 500},
 		"ui_click":       {"vol": -9.0,  "gap": 40},
 		"ui_hover":       {"vol": -14.0, "gap": 40},
 		"ui_toggle":      {"vol": -10.0, "gap": 40},
