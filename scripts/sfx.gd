@@ -33,8 +33,6 @@ static var _last := {}                      # key -> Time.get_ticks_msec() of la
 static var _lib := {}                       # key -> Array[AudioStream]
 static var _cfg := {}                       # key -> {"vol": dB, "gap": ms}
 static var _booted := false
-const DEBUG_AUDIO := true                    # TEMP: confirm web music/SFX playback in the browser console
-static var _logged_first_sfx := false
 
 # --- lazy boot (no autoload) -----------------------------------------------
 static func _boot() -> void:
@@ -111,9 +109,6 @@ static func play(key: String, pitch_var := 0.06, volume_db := 0.0) -> void:
 	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
 	p.volume_db = float(cfg.get("vol", 0.0)) + volume_db
 	p.play()
-	if DEBUG_AUDIO and not _logged_first_sfx:
-		_logged_first_sfx = true
-		print("[SFX] first SFX '%s' play(): playing=%s vol_db=%.1f" % [key, str(p.playing), p.volume_db])
 
 # --- music ------------------------------------------------------------------
 ## Loop a background track from assets/audio/music/<name>.ogg as a quiet bed.
@@ -136,9 +131,6 @@ static func play_music(name: String, volume_db := -7.0) -> void:
 	_music.stream = stream
 	_music.volume_db = volume_db
 	_music.play()
-	if DEBUG_AUDIO:
-		print("[SFX] music '%s' play(): in_tree=%s playing=%s vol_db=%.1f bus=%s" % [
-			name, str(_music.is_inside_tree()), str(_music.playing), _music.volume_db, _music.bus])
 
 static func stop_music() -> void:
 	if _music:
