@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://kovhs7ip2uy2"
-path="res://.godot/imported/Vampire-Hurt.png-7505f7e0502183281023de699814beff.ctex"
+uid="uid://dx8wbkrxjyf77"
+path="res://.godot/imported/Banshee-Idle.png-d990f569f9777a4a3d59b0140d8c1efe.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://sprites/vampire/processed/Vampire-Hurt.png"
-dest_files=["res://.godot/imported/Vampire-Hurt.png-7505f7e0502183281023de699814beff.ctex"]
+source_file="res://sprites/banshee/Banshee-Idle.png"
+dest_files=["res://.godot/imported/Banshee-Idle.png-d990f569f9777a4a3d59b0140d8c1efe.ctex"]
 
 [params]
 

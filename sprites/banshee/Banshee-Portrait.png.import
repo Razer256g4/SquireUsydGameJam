@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://de44f8pepckt"
-path="res://.godot/imported/Vampire-Attack.png-c4c59d822d68002d9894d4f08e9c2094.ctex"
+uid="uid://dj66ax37pavta"
+path="res://.godot/imported/Banshee-Portrait.png-209f46377e4d3979190817b4c302d2bb.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://sprites/vampire/processed/Vampire-Attack.png"
-dest_files=["res://.godot/imported/Vampire-Attack.png-c4c59d822d68002d9894d4f08e9c2094.ctex"]
+source_file="res://sprites/banshee/Banshee-Portrait.png"
+dest_files=["res://.godot/imported/Banshee-Portrait.png-209f46377e4d3979190817b4c302d2bb.ctex"]
 
 [params]
 
