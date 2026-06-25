@@ -61,6 +61,11 @@ func _fire_ambient() -> void:
 	_last = kind
 	_run(kind)
 
+## Seconds left on the squire-triggered scheme (Q) cooldown — read by the HUD ability
+## bar to drive its radial cooldown sweep. 0.0 when ready.
+func scheme_cd_left() -> float:
+	return _scheme_cd
+
 ## Squire-triggered (Q). Fires a scheme on cooldown and bumps suspicion. True if it fired.
 func trigger_scheme() -> bool:
 	if _scheme_cd > 0.0 or not _game or _game.phase != "serving":

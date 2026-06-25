@@ -2,15 +2,16 @@ extends CanvasLayer
 class_name PauseMenu
 ## Esc-toggled pause + Settings overlay. Processes ALWAYS so it still runs while the
 ## tree is paused. Toggles/sliders flip the `Settings` statics that the juice, audio
-## and window code read. Uses real Control nodes (Buttons/CheckButtons/HSliders) for
-## robust, clickable widgets. The inner column is rebuilt every time the menu opens
-## so the widgets always reflect the live Settings (e.g. fullscreen toggled via F11).
+## and window code read. Skinned with the shared Franuka `UiKit` style (warm parchment
+## "fantasy RPG" look) to match the HUD. The inner column is rebuilt every time the
+## menu opens so the widgets always reflect the live Settings (e.g. fullscreen via F11).
 
 var _box: VBoxContainer       # inner column; repopulated on every open
 
 func _ready() -> void:
 	layer = 20
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# pixel art stays crisp via project default texture filter = Nearest
 	_build()
 	visible = false
 
@@ -25,18 +26,19 @@ func _build() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
-	var panel := PanelContainer.new()
+	# Parchment backing — a PanelContainer (auto-sizes to content) skinned with the
+	# ornate Franuka frame. texture_margin 48 keeps each gold corner STUD inside its
+	# 9-slice corner (the old 32 sliced through them, smearing the studs/border along
+	# the edges as the panel stretched). content-margin 44 insets the column clear.
+	var panel := UiKit.panel_container(UiKit.PANEL_ORNATE, 48, 44)
+	panel.custom_minimum_size = Vector2(440, 0)
+	panel.mouse_filter = Control.MOUSE_FILTER_STOP   # eat clicks so they don't fall through to the arena
 	center.add_child(panel)
 
-	var margin := MarginContainer.new()
-	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 28)
-	panel.add_child(margin)
-
 	_box = VBoxContainer.new()
-	_box.add_theme_constant_override("separation", 12)
-	_box.custom_minimum_size = Vector2(320, 0)
-	margin.add_child(_box)
+	_box.add_theme_constant_override("separation", 16)
+	_box.custom_minimum_size = Vector2(360, 0)
+	panel.add_child(_box)
 	_populate()
 
 ## Fill (or refill) the inner column from the current Settings. Cheap enough to run
@@ -46,11 +48,10 @@ func _populate() -> void:
 		_box.remove_child(c)
 		c.free()
 
-	var title := Label.new()
-	title.text = "PAUSED"
-	title.add_theme_font_size_override("font_size", 44)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_box.add_child(title)
+	# --- PAUSED header (dark banner + centred gold text) ---
+	var header := UiKit.title_banner("PAUSED", 34)
+	header.custom_minimum_size = Vector2(0, 92)   # banner art is 144x96 — near-native height so the 9-slice doesn't squish
+	_box.add_child(header)
 
 	_section("DISPLAY")
 	_box.add_child(_toggle_row("Fullscreen  (F11)", Settings.fullscreen, _on_fullscreen))
@@ -67,51 +68,44 @@ func _populate() -> void:
 
 	_space(8)
 
-	var resume := Button.new()
-	resume.text = "Resume  (Esc)"
+	var resume := UiKit.button("Resume  (Esc)", UiKit.BTN_GOLD, 24, UiKit.INK)
 	resume.pressed.connect(func() -> void: Sfx.play("ui_click"); _toggle())
 	_box.add_child(resume)
 
-	var restart := Button.new()
-	restart.text = "Restart"
+	var restart := UiKit.button("Restart", UiKit.BTN_RED, 22, Color.WHITE)
 	restart.pressed.connect(func() -> void: Sfx.play("ui_click"); _restart())
 	_box.add_child(restart)
 
-	var reset := Button.new()
-	reset.text = "Reset to defaults"
+	var reset := UiKit.button("Reset to defaults", UiKit.BTN_TAN, 20, UiKit.INK)
 	reset.pressed.connect(_on_reset)
 	_box.add_child(reset)
 
+## A clean section header (dark heading + divider) — no stretched banner.
 func _section(text: String) -> void:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", 16)
-	l.add_theme_color_override("font_color", Color(1.0, 0.82, 0.4))
-	_box.add_child(l)
+	_box.add_child(UiKit.section_header(text, 22))
 
 func _space(h: int) -> void:
 	var s := Control.new()
 	s.custom_minimum_size = Vector2(0, h)
+	s.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_box.add_child(s)
 
-func _toggle_row(label: String, value: bool, cb: Callable) -> CheckButton:
-	var c := CheckButton.new()
-	c.text = label
-	c.button_pressed = value
-	c.toggled.connect(cb)
-	return c
+## A Franuka-skinned checkbox row (dark ink label on parchment). Wires `toggled` to `cb`.
+func _toggle_row(label_text: String, value: bool, cb: Callable) -> CheckBox:
+	var pair := UiKit.toggle(label_text, value)
+	var box: CheckBox = pair[0]
+	box.toggled.connect(cb)
+	return box
 
-func _slider_row(label: String, value: float, cb: Callable) -> Control:
+## A labelled Franuka slider. The label uses dark ink so it reads on the parchment.
+func _slider_row(label_text: String, value: float, cb: Callable) -> Control:
 	var col := VBoxContainer.new()
-	var l := Label.new()
-	l.text = label
+	col.add_theme_constant_override("separation", 4)
+	var l := UiKit.label(label_text, 18, UiKit.INK, false)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	col.add_child(l)
-	var s := HSlider.new()
-	s.min_value = 0.0
-	s.max_value = 1.0
-	s.step = 0.05
-	s.value = value
-	s.custom_minimum_size = Vector2(280, 0)
+	var s := UiKit.slider(value, 0.0, 1.0, 0.05)
+	s.custom_minimum_size = Vector2(300, 28)
 	s.value_changed.connect(cb)
 	col.add_child(s)
 	return col

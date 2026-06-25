@@ -43,6 +43,9 @@ Uses two free packs you dropped into the project:
 - **Tiny RPG Character Asset Pack** (`tiny rpg/`) — the **Soldier** sheet for the Princess
   and the Squire, the **Orc** sheet for monsters, and the arrow for thrown weapons.
 - **Tiny Swords** (`tiny  swords terrain/`) — buildings used as darkened backdrop scenery.
+- **RPG UI pack by Franuka** (`assets/ui/franuka/`) — the HUD skin (item-slot ability bar,
+  pixel fonts, panels, banners, icons). © Franuka — used under its licence; see
+  <https://franuka.itch.io/rpg-ui-pack>. *(Required attribution — do not remove.)*
 
 > **Note:** the free character pack only ships a *Soldier* and an *Orc*, so the Princess and
 > the Squire currently share the Soldier sprite — the Squire is scaled down and tinted green,

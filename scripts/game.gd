@@ -233,13 +233,15 @@ func win() -> void:
 	hud.update_state(self)      # final snapshot — _process stops refreshing once we leave the play phases
 	hud.show_end(true, score, wave)
 
-func lose() -> void:
+## cause: "queen" if the Princess struck you down (the boss fight), else a witty
+## "pointless death". The squire passes this based on the phase it died in.
+func lose(cause := "") -> void:
 	if phase == "won" or phase == "lost":
 		return
 	phase = "lost"
 	Sfx.play("lose")
 	hud.update_state(self)      # final snapshot so the HP pips show the lethal hit (0 left), not a stale 1
-	hud.show_end(false, score, wave)
+	hud.show_end(false, score, wave, cause)
 
 ## A sabotage (cursed gift or tip-off) raises suspicion on an exponential curve:
 ## the longer the streak since your last genuine gift, the bigger each spike.

@@ -223,7 +223,10 @@ func take_damage(_d: float) -> void:
 		Sfx.play("player_die")
 		_play("death")
 		if _game:
-			_game.lose()
+			# Boss phase = the Princess is hunting you, so a death there is HER doing
+			# (executed). Any serving-phase death is by monsters / traps / your own
+			# chaos — a "pointless" non-queen death.
+			_game.lose("queen" if _game.phase == "boss" else "")
 	else:
 		Sfx.play("player_hurt")
 		_play("hurt")

@@ -8,6 +8,17 @@ class_name Lines
 static func pick(pool: Array) -> String:
 	return pool[randi() % pool.size()] if pool.size() > 0 else ""
 
+# --- death epilogues for a NON-queen death (you died to your own chaos, the
+#     horde, or a stray trap — not at the Princess's hand). Shown on the loss screen.
+const POINTLESS_DEATH := [
+	"Not even the Princess noticed.",
+	"Slain mid-scheme. How embarrassing.",
+	"You died doing chores.",
+	"All that treason, undone by a stray rock.",
+	"The horde you befriended forgot whose side they were on.",
+	"Hoist by your own petard. Literally.",
+]
+
 # --- general squire barks (ambient personality) -----------------------------
 const GAG := [
 	"Whoopsie. Big whoopsie.",
