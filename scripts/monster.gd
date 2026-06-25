@@ -32,6 +32,7 @@ var enraged := false
 var _cd := 0.0
 var _flash := 0.0
 var _anim_lock := 0.0
+var _lunge_timer := 0.0      # werewolf: burst speed after each attack
 var _dead := false
 var _overlay_y := 0.0
 var _game: Game
@@ -68,6 +69,18 @@ func configure(wave: int) -> void:
 			max_hp = 95.0; speed = 42.0; damage = 18.0; attack_cd = 1.3
 			radius = 46.0; scale_f = 5.8; tint = Color(1.0, 0.6, 0.55); prefers_squire = false
 			score_value = 30; drop_chance = 0.45
+		"vampire":   # gothic elite: tanky, fast, cape-flowing idle, lunge attack
+			max_hp = 70.0; speed = 92.0; damage = 13.0; attack_cd = 0.9
+			radius = 28.0; scale_f = 0.12; tint = Color.WHITE; prefers_squire = false
+			score_value = 26; drop_chance = 0.38
+		"banshee":   # wave 3+ spectral screamer: fast, ethereal, terrifying wail
+			max_hp = 60.0; speed = 110.0; damage = 14.0; attack_cd = 1.3
+			radius = 26.0; scale_f = 0.1; tint = Color(0.85, 0.9, 1.0); prefers_squire = false
+			score_value = 28; drop_chance = 0.35
+		"werewolf":  # wave 2+ pack hunter: fast, medium HP, pounces hard
+			max_hp = 55.0; speed = 105.0; damage = 11.0; attack_cd = 1.0
+			radius = 28.0; scale_f = 0.15; tint = Color(0.75, 0.6, 0.9); prefers_squire = false
+			score_value = 22; drop_chance = 0.32
 		"minion":   # the "67" gag swarm: tiny, weak, fast, despawns on its own
 			max_hp = 6.0; speed = 150.0; damage = 3.0; attack_cd = 0.7
 			radius = 14.0; scale_f = 2.2; tint = Color(0.95, 0.8, 1.0); prefers_squire = false
@@ -89,7 +102,16 @@ func configure(wave: int) -> void:
 	# overlay row uses the same content-top (39) the Princess/Squire do.
 	var human := kind == "protestor"
 	_spr = AnimatedSprite2D.new()
-	_spr.sprite_frames = Anim.soldier() if human else Anim.orc()
+	if kind == "vampire":
+		_spr.sprite_frames = Anim.vampire()
+	elif kind == "banshee":
+		_spr.sprite_frames = Anim.banshee()
+	elif kind == "werewolf":
+		_spr.sprite_frames = Anim.werewolf()
+	elif human:
+		_spr.sprite_frames = Anim.soldier()
+	else:
+		_spr.sprite_frames = Anim.orc()
 	_spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_spr.scale = Vector2(scale_f, scale_f)
 	_spr.offset = Vector2(0, -6)        # feet sit on the node origin
@@ -98,7 +120,15 @@ func configure(wave: int) -> void:
 	add_child(_spr)
 	_base_scale = Vector2(scale_f, scale_f)
 	_play("idle")
-	_overlay_y = overlay_y(39.0 if human else 42.0, scale_f)
+	# Non-standard frame heights: compute overlay_y directly instead of using FRAME_CENTER=50.
+	if kind == "werewolf":
+		_overlay_y = -(scale_f * 768.0 * 0.50) - 8.0
+	elif kind == "banshee":
+		_overlay_y = -(scale_f * 724.0 * 0.45) - 8.0
+	elif kind == "vampire":
+		_overlay_y = -(scale_f * 724.0 * 0.45) - 8.0
+	else:
+		_overlay_y = overlay_y(10.0 if kind == "vampire" else (39.0 if human else 42.0), scale_f)
 
 func _process(delta: float) -> void:
 	if _game and _game.phase != "serving" and _game.phase != "boss":
@@ -117,6 +147,7 @@ func _process(delta: float) -> void:
 	_cd = _decay(_cd, delta)
 	_flash = _decay(_flash, delta)
 	_anim_lock = _decay(_anim_lock, delta)
+	_lunge_timer = _decay(_lunge_timer, delta)
 	_tick_pop(delta)
 	if _spr:
 		_spr.modulate = Color.WHITE if _flash > 0.0 else _base_tint()
@@ -129,16 +160,18 @@ func _process(delta: float) -> void:
 		_facing = to_t / maxf(dist, 0.001)
 		var reach: float = radius + _target_radius(target) + 2.0
 		if dist > reach:
-			position += _facing * speed * delta
+			var cur_speed := speed * (2.5 if kind == "werewolf" and _lunge_timer > 0.0 else 1.0)
+			position += _facing * cur_speed * delta
 			position += _separation() * delta
 			position = Game.clamp_to_arena(position, radius)
 			moved = true
 		elif _cd <= 0.0:
 			target.take_damage(damage)
-			Sfx.play("enemy_swing")
 			_cd = attack_cd
 			_play("attack")
 			_anim_lock = 0.35
+			if kind == "werewolf":
+				_lunge_timer = 0.45
 
 	_update_flip()
 	if _anim_lock <= 0.0:
@@ -198,17 +231,25 @@ func enrage() -> void:
 	if enraged:
 		return
 	enraged = true
-	Sfx.play("enrage")
 	speed *= 1.4
 	damage *= 1.5
 
 ## Switch sides at the betrayal: now fight FOR the squire, against the Princess.
 func defect() -> void:
 	faction = "ally"
-	Sfx.play("defect")
-	tint = ALLY_TINT
+	match kind:
+		"werewolf":
+			tint = Color(1.0, 0.6, 0.2)   # feral orange — pack goes feral
+			enraged = true
+			speed *= 1.4
+			damage *= 1.5
+		"banshee":
+			tint = Color(0.3, 1.0, 0.85)   # cold cyan — wail now for the princess
+			attack_cd *= 0.75
+		_:
+			tint = ALLY_TINT
 	if _spr:
-		_spr.modulate = ALLY_TINT
+		_spr.modulate = tint
 
 ## Put this monster on a non-default faction (used by event spawns). Re-tints it.
 func set_faction(f: String) -> void:
@@ -228,17 +269,17 @@ func take_damage(d: float) -> void:
 	if hp <= 0.0:
 		_die()
 	else:
-		Sfx.play("enemy_hurt")
 		_play("hurt")
 		_anim_lock = 0.2
 
 func _die() -> void:
 	_dead = true
-	Sfx.play("enemy_die")
 	remove_from_group("monsters")
 	if _game:
 		_game.on_monster_killed(self)
 		Fx.sparks(_game, global_position, _base_tint(), 14, 110.0, 0.5)
+	if kind == "banshee":
+		_banshee_death_wail()
 	if _spr:
 		_spr.modulate = _base_tint()
 		_play("death")
@@ -246,6 +287,18 @@ func _die() -> void:
 	await get_tree().create_timer(0.45).timeout
 	if is_instance_valid(self):
 		queue_free()
+
+func _banshee_death_wail() -> void:
+	const WAIL_RADIUS := 110.0
+	const WAIL_DMG    := 6.0
+	if _game:
+		Fx.sparks(_game, global_position, Color(0.6, 0.9, 1.0), 22, WAIL_RADIUS, 0.7)
+	var princess := get_tree().get_first_node_in_group("princess") as Actor
+	var squire   := get_tree().get_first_node_in_group("squire")   as Actor
+	for target in [princess, squire]:
+		if target and is_instance_valid(target) \
+				and global_position.distance_to(target.global_position) <= WAIL_RADIUS:
+			target.take_damage(WAIL_DMG)
 
 func _base_tint() -> Color:
 	return ENRAGED_TINT if enraged else tint

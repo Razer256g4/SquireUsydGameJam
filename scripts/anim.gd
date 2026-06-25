@@ -38,8 +38,55 @@ static func orc() -> SpriteFrames:
 	_cache["orc"] = sf
 	return sf
 
+static func vampire() -> SpriteFrames:
+	if _cache.has("vampire"):
+		return _cache["vampire"]
+	var b    := "res://sprites/vampire/processed/"
+	var idle := b + "Vampire-Idle.png"
+	var sf := _build([
+		{"name": "idle",    "path": idle,                   "frames": 6, "fps": 8.0,  "loop": true,  "fw": 362},
+		{"name": "walk",    "path": idle,                   "frames": 6, "fps": 10.0, "loop": true,  "fw": 362},
+		{"name": "attack",  "path": b + "Vampire-Lunge.png",   "frames": 5, "fps": 14.0, "loop": false, "fw": 396},
+		{"name": "special", "path": b + "Vampire-Special.png", "frames": 8, "fps": 12.0, "loop": false, "fw": 222},
+		{"name": "hurt",    "path": idle,                   "frames": 2, "fps": 10.0, "loop": false, "fw": 362},
+		{"name": "death",   "path": b + "Vampire-Portrait.png","frames": 1, "fps": 4.0,  "loop": false, "fw": 1254},
+	])
+	_cache["vampire"] = sf
+	return sf
+
 static func arrow_texture() -> Texture2D:
 	return load(RPG + "Arrow(Projectile)/Arrow01(100x100).png") as Texture2D
+
+static func banshee() -> SpriteFrames:
+	if _cache.has("banshee"):
+		return _cache["banshee"]
+	var idle_p := "res://sprites/banshee/processed/Banshee-Idle.png"
+	var atk_p  := "res://sprites/banshee/processed/Banshee-Attack.png"
+	var die_p  := "res://sprites/banshee/processed/Banshee-Portrait.png"
+	var sf := _build([
+		{"name": "idle",   "path": idle_p, "frames": 3, "fps": 6.0,  "loop": true,  "fw": 724},
+		{"name": "walk",   "path": idle_p, "frames": 3, "fps": 8.0,  "loop": true,  "fw": 724},
+		{"name": "attack", "path": atk_p,  "frames": 5, "fps": 12.0, "loop": false, "fw": 434},
+		{"name": "hurt",   "path": idle_p, "frames": 1, "fps": 8.0,  "loop": false, "fw": 724},
+		{"name": "death",  "path": die_p,  "frames": 1, "fps": 4.0,  "loop": false, "fw": 1254},
+	])
+	_cache["banshee"] = sf
+	return sf
+
+static func werewolf() -> SpriteFrames:
+	if _cache.has("werewolf"):
+		return _cache["werewolf"]
+	var idle_p := "res://sprites/werewolf/processed/Werewolf-Idle.png"
+	var howl_p := "res://sprites/werewolf/processed/Werewolf-Attack.png"
+	var sf := _build([
+		{"name": "idle",   "path": idle_p, "frames": 6, "fps": 8.0,  "loop": true,  "fw": 234},
+		{"name": "walk",   "path": idle_p, "frames": 6, "fps": 10.0, "loop": true,  "fw": 234},
+		{"name": "attack", "path": howl_p, "frames": 7, "fps": 14.0, "loop": false, "fw": 390},
+		{"name": "hurt",   "path": idle_p, "frames": 2, "fps": 10.0, "loop": false, "fw": 234},
+		{"name": "death",  "path": idle_p, "frames": 6, "fps": 5.0,  "loop": false, "fw": 234},
+	])
+	_cache["werewolf"] = sf
+	return sf
 
 static func _build(defs: Array) -> SpriteFrames:
 	var sf := SpriteFrames.new()
@@ -54,11 +101,12 @@ static func _build(defs: Array) -> SpriteFrames:
 		if tex == null:
 			push_warning("Anim: could not load " + str(d["path"]))
 			continue
+		var fw: int = d.get("fw", FW)
 		var fh := tex.get_height()
 		var n: int = d["frames"]
 		for i in n:
 			var at := AtlasTexture.new()
 			at.atlas = tex
-			at.region = Rect2(i * FW, 0, FW, fh)
+			at.region = Rect2(i * fw, 0, fw, fh)
 			sf.add_frame(name, at)
 	return sf

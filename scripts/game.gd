@@ -16,9 +16,6 @@ class_name Game
 ## initial/fallback. Everything (HUD, spawns, clamps, scenery, floor) derives from it.
 static var arena := Vector2(1600, 900)
 const WALL_MARGIN := 28.0
-# Loaded by path (not the `IntroScreen` global) so it resolves even before the editor
-# has registered the new class — avoids a "class not declared" parse error on first run.
-const INTRO_SCREEN = preload("res://scripts/intro.gd")
 
 # --- pacing / difficulty tuning ---
 const FIRST_INTERMISSION := 3.5
@@ -76,7 +73,6 @@ var _cam: Camera2D                # shakes the VIEW only, so node coordinates st
 func _ready() -> void:
 	add_to_group("game")
 	rng.randomize()
-	Settings.apply_display()               # re-assert fullscreen/vsync so they survive a restart (R)
 	arena = get_viewport_rect().size       # fit the playable area to the actual canvas
 
 	princess = Princess.new()
@@ -96,10 +92,6 @@ func _ready() -> void:
 
 	add_child(PauseMenu.new())
 
-	# Start-of-run briefing (premise + controls), shown once per session.
-	if not INTRO_SCREEN.seen:
-		add_child(INTRO_SCREEN.new())
-
 	# Camera centred on the arena keeps the exact current framing (arena == viewport),
 	# and lets screen-shake jitter the view via its offset without moving any node.
 	_cam = Camera2D.new()
@@ -108,7 +100,6 @@ func _ready() -> void:
 	_cam.make_current()
 
 	_build_scenery()
-	Sfx.play_music("serving")    # loops assets/audio/music/serving.ogg if present (silent otherwise)
 	queue_redraw()
 
 func _input(event: InputEvent) -> void:
@@ -165,10 +156,8 @@ func _run_waves(delta: float) -> void:
 			if _enemies_remaining() == 0:
 				wave_state = "intermission"
 				phase_timer = CLEAR_INTERMISSION
-				Sfx.play("wave_clear")
 				princess.level_up()
-				hud.announce("The Princess grows stronger!  Lv.%d   +%d Max HP · +%d ATK" %
-					[princess.level, int(Princess.LVL_HP_GAIN), int(Princess.LVL_DMG_GAIN)])
+				hud.announce("The Princess grows stronger... (Lv.%d)" % princess.level)
 				_wave_banter()
 
 func _run_pickups(delta: float) -> void:
@@ -183,7 +172,6 @@ func _start_wave() -> void:
 	monsters_to_spawn = BASE_MONSTERS + wave * MONSTERS_PER_ROOM
 	spawn_timer = 0.0
 	wave_state = "spawning"
-	Sfx.play("wave_start")
 	hud.announce("Wave %d" % wave)
 
 ## A witty princess/squire exchange between waves — gives the betrayal story room
@@ -198,17 +186,32 @@ func _wave_banter() -> void:
 # --- phase 2: boss ---
 func _betray() -> void:
 	phase = "boss"
-	Sfx.play("betray_sting")                # deep WHOOM under her "TRAITOR!" roar (level in mix config)
-	Sfx.play_music("boss")                  # swap to assets/audio/music/boss.ogg if present
 	princess.become_boss()
-	# Every surviving monster defects to your side...
+	var wolf_count := 0
+	var banshee_count := 0
 	for m in get_tree().get_nodes_in_group("monsters"):
-		(m as Monster).defect()
-	# ...and reinforcements storm in to help bring her down.
+		var mon := m as Monster
+		if mon.kind == "werewolf": wolf_count += 1
+		elif mon.kind == "banshee": banshee_count += 1
+		mon.defect()
 	for _i in BOSS_ALLY_BONUS:
 		var m := _spawn_enemy()
 		m.defect()
 	hud.betray()
+	_queue_betrayal_narration(wolf_count, banshee_count)
+
+func _queue_betrayal_narration(wolves: int, banshees: int) -> void:
+	await get_tree().create_timer(3.5).timeout
+	if not is_instance_valid(hud):
+		return
+	if wolves > 0 and banshees > 0:
+		hud.announce("Your wolves smell her blood. The banshees wail for you now.")
+	elif wolves > 0:
+		hud.announce("Your wolves smell her blood.")
+	elif banshees > 0:
+		hud.announce("The banshees wail for you now.")
+	else:
+		hud.announce("Your monsters turn. The princess bleeds.")
 
 func _boss_process(delta: float) -> void:
 	if not is_instance_valid(princess) or princess.hp <= 0.0:
@@ -229,16 +232,12 @@ func win() -> void:
 	if phase == "won" or phase == "lost":
 		return
 	phase = "won"
-	Sfx.play("win")
-	hud.update_state(self)      # final snapshot — _process stops refreshing once we leave the play phases
 	hud.show_end(true, score, wave)
 
 func lose() -> void:
 	if phase == "won" or phase == "lost":
 		return
 	phase = "lost"
-	Sfx.play("lose")
-	hud.update_state(self)      # final snapshot so the HP pips show the lethal hit (0 left), not a stale 1
 	hud.show_end(false, score, wave)
 
 ## A sabotage (cursed gift or tip-off) raises suspicion on an exponential curve:
@@ -247,9 +246,9 @@ func sabotage_suspicion() -> void:
 	suspicion = clampf(suspicion + SUS_BASE * pow(SUS_GROWTH, cursed_streak), 0.0, SUSPICION_MAX)
 	cursed_streak += 1
 
-## A genuine gift fully allays her suspicion and resets the streak.
+## A genuine gift reduces suspicion but can't fully erase it late-game.
 func help_resets_suspicion() -> void:
-	suspicion = 0.0
+	suspicion = maxf(suspicion * 0.3, minf(wave * 5.0, 35.0))
 	cursed_streak = 0
 
 func on_monster_killed(m: Monster) -> void:
@@ -292,11 +291,23 @@ func _spawn_pickup(kind: String, pos: Vector2) -> void:
 
 func _weighted_monster_kind() -> String:
 	var r := rng.randf()
-	var brute_w: float = minf(0.30, 0.05 + wave * 0.02)
-	var scout_w := 0.35
-	if r < brute_w:
+	var brute_w: float = minf(0.25, 0.05 + wave * 0.02)
+	var scout_w := 0.22
+	# Werewolves are wave 2 pack hunters — gradually displace scouts as the dominant fast enemy.
+	var wolf_w: float = 0.0 if wave < 2 else minf(0.28, 0.06 + (wave - 2) * 0.03)
+	# Banshees are wave 3 spectral elites — screaming, fast, disorienting.
+	var banshee_w: float = 0.0 if wave < 3 else minf(0.18, 0.04 + (wave - 3) * 0.02)
+	# Vampires are a mid/late-game elite — they start showing up from wave 3.
+	var vamp_w: float = 0.0 if wave < 3 else minf(0.18, 0.04 + (wave - 3) * 0.02)
+	if r < vamp_w:
+		return "vampire"
+	elif r < vamp_w + banshee_w:
+		return "banshee"
+	elif r < vamp_w + banshee_w + wolf_w:
+		return "werewolf"
+	elif r < vamp_w + banshee_w + wolf_w + brute_w:
 		return "brute"
-	elif r < brute_w + scout_w:
+	elif r < vamp_w + banshee_w + wolf_w + brute_w + scout_w:
 		return "scout"
 	return "grunt"
 
