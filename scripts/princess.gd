@@ -161,6 +161,7 @@ func _process(delta: float) -> void:
 	_beam_cd = _decay(_beam_cd, delta)
 	_charge_cd = _decay(_charge_cd, delta)
 	_gcd = _decay(_gcd, delta)
+	_tick_speech(delta)
 
 	if poison_dps > 0.0:
 		hp -= poison_dps * delta
@@ -585,3 +586,4 @@ func _draw() -> void:
 		Vector2(-22, cy + 16), Vector2(-22, cy), Vector2(-11, cy + 9),
 		Vector2(0, cy - 8), Vector2(11, cy + 9), Vector2(22, cy), Vector2(22, cy + 16)
 	]), crown)
+	_draw_speech(_overlay_y)

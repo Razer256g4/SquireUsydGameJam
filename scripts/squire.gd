@@ -90,6 +90,7 @@ func _process(delta: float) -> void:
 	_hurt_cd = _decay(_hurt_cd, delta)
 	_flash = _decay(_flash, delta)
 	tip_cd = _decay(tip_cd, delta)
+	_tick_speech(delta)
 
 	var input_dir := _read_move()
 	if input_dir != Vector2.ZERO:
@@ -228,6 +229,7 @@ func take_damage(_d: float) -> void:
 		_play("hurt")
 
 func _draw() -> void:
+	_draw_speech(_overlay_y)
 	# Carried item floats above the squire's head, with a tell-tale aura if cursed.
 	if carry == "":
 		return

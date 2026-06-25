@@ -221,6 +221,7 @@ func win() -> void:
 		return
 	phase = "won"
 	Sfx.play("win")
+	hud.update_state(self)      # final snapshot — _process stops refreshing once we leave the play phases
 	hud.show_end(true, score, wave)
 
 func lose() -> void:
@@ -228,6 +229,7 @@ func lose() -> void:
 		return
 	phase = "lost"
 	Sfx.play("lose")
+	hud.update_state(self)      # final snapshot so the HP pips show the lethal hit (0 left), not a stale 1
 	hud.show_end(false, score, wave)
 
 ## A sabotage (cursed gift or tip-off) raises suspicion on an exponential curve:
