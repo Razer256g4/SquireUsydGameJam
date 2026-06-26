@@ -24,21 +24,24 @@ const INTRO_SCREEN = preload("res://scripts/intro.gd")
 const CUTSCENE = preload("res://scripts/cutscene.gd")
 
 # --- pacing / difficulty tuning ---
-const FIRST_INTERMISSION := 3.5
-const CLEAR_INTERMISSION := 6.0   # longer breather between waves (time for banter + setup)
+const FIRST_INTERMISSION := 2.0
+const CLEAR_INTERMISSION := 2.5   # short breather — keep the horde coming (was 6.0)
 const FIRST_PICKUP_DELAY := 1.5
 const PICKUP_INTERVAL := Vector2(0.4, 0.8)   # quick relocation after one is taken
 const MAX_PICKUPS := 1                        # Snake-like: one supply on the field at a time
 const PICKUP_HARD_CAP := 3                    # ceiling including occasional kill drops
 const KILL_DROP_MULT := 0.4                   # kill drops are now rare
-const BASE_MONSTERS := 9
-const MONSTERS_PER_ROOM := 4
+# SWARM: big waves that keep the arena packed. MAX_CONCURRENT bounds the LIVE enemy count so the
+# screen stays full without melting the single-threaded web build (monster AI/separation is O(n^2)).
+const BASE_MONSTERS := 40
+const MONSTERS_PER_ROOM := 12
+const MAX_CONCURRENT := 42                    # hard ceiling on live enemies on screen at once
 const WAVE_HP_GROWTH := 1.16     # monster HP scales EXPONENTIALLY per wave
 const WAVE_DMG_GROWTH := 1.09    # monster damage scales exponentially per wave
-const BASE_SPAWN_GAP := 0.4
-const MIN_SPAWN_GAP := 0.12
+const BASE_SPAWN_GAP := 0.22
+const MIN_SPAWN_GAP := 0.07
 const SPAWN_GAP_DECAY := 0.02
-const SPAWN_BURST := 3                       # monsters poured in per spawn tick (a horde)
+const SPAWN_BURST := 7                        # monsters poured in per spawn tick (a horde)
 const BOSS_ALLY_BONUS := 4                   # extra defectors that storm in at the betrayal
 const BOSS_REINFORCE_INTERVAL := 3.5         # boss: fresh defectors keep arriving...
 const BOSS_REINFORCE_COUNT := 2
@@ -203,7 +206,12 @@ func _run_waves(delta: float) -> void:
 		"spawning":
 			spawn_timer -= delta
 			if spawn_timer <= 0.0 and monsters_to_spawn > 0:
-				for _i in mini(SPAWN_BURST, monsters_to_spawn):
+				# Pour in a burst, but never exceed MAX_CONCURRENT live enemies. As the Princess
+				# mows the horde down, room frees up and the wave keeps topping back up — so the
+				# arena stays SWARMING instead of draining, while the live count stays bounded.
+				var room := MAX_CONCURRENT - _enemies_remaining()
+				var burst := mini(mini(SPAWN_BURST, monsters_to_spawn), maxi(room, 0))
+				for _i in burst:
 					_spawn_enemy()
 					monsters_to_spawn -= 1
 				spawn_timer = maxf(MIN_SPAWN_GAP, BASE_SPAWN_GAP - wave * SPAWN_GAP_DECAY)

@@ -25,42 +25,42 @@ const GENUINE_POWER := 0.05
 
 # per-level gains — named so the HUD/popup can show exactly what each level grants
 const LVL_HP_GAIN := 25.0
-const LVL_DMG_GAIN := 5.0
+const LVL_DMG_GAIN := 7.0
 const LVLUP_TIME := 1.8       # how long the floating "LEVEL UP" readout lingers
 
 # --- telegraphed abilities (used in BOTH phases), each on its own cooldown ---
 # Every flashy move first shows a Telegraph for *_DELAY seconds, THEN strikes, so
 # the Squire (and the horde) can SEE it coming and walk/dash out of the danger zone.
-const ABILITY_GCD := 0.8     # global pause between casts so telegraphs don't spam
-const METEOR_CD := 5.0       # heavy AoE bomb dropped on the thickest part of the horde
+const ABILITY_GCD := 0.5     # global pause between casts so telegraphs don't spam (lower = more spectacle)
+const METEOR_CD := 3.2       # heavy AoE bomb dropped on the thickest part of the horde
 const METEOR_RADIUS := 160.0
 const METEOR_POWER := 3.2    # x base_damage
 const METEOR_DELAY := 0.7
-const NOVA_CD := 7.0         # burst at her feet, clears anything hugging her
+const NOVA_CD := 4.0         # burst at her feet, clears anything hugging her
 const NOVA_RADIUS := 140.0
 const NOVA_POWER := 1.7
 const NOVA_DELAY := 0.5
-const SMITE_CD := 3.5        # fast chain lightning to the nearest few
-const SMITE_TARGETS := 4
+const SMITE_CD := 2.2        # fast chain lightning to the nearest few
+const SMITE_TARGETS := 6
 const SMITE_POWER := 1.5
 const SMITE_DELAY := 0.18    # brief tell, then the bolt
 const NUKE_CD := 3.5         # boss: big bomb on the Squire's position
 const NUKE_RADIUS := 150.0
 const NUKE_POWER := 1.2
 const NUKE_DELAY := 0.6
-const SHOWER_CD := 9.0       # several staggered craters around the target
+const SHOWER_CD := 6.0       # several staggered craters around the target
 const SHOWER_COUNT := 5
 const SHOWER_RADIUS := 90.0
 const SHOWER_SPREAD := 170.0
 const SHOWER_POWER := 1.6
 const SHOWER_DELAY := 0.7
 const SHOWER_STAGGER := 0.22
-const BEAM_CD := 8.0         # cross of two perpendicular beams through the target
+const BEAM_CD := 5.5         # cross of two perpendicular beams through the target
 const BEAM_LEN := 520.0
 const BEAM_HALF_W := 34.0
 const BEAM_POWER := 2.0
 const BEAM_DELAY := 0.65
-const CHARGE_CD := 7.5       # telegraph a lane, then physically dash down it
+const CHARGE_CD := 5.5       # telegraph a lane, then physically dash down it
 const CHARGE_HALF_W := 40.0
 const CHARGE_POWER := 2.2
 const CHARGE_DELAY := 0.6
@@ -86,14 +86,15 @@ const SELF_SERVE := [
 	"No need to trouble you, dear squire.", "Spoils of war — mostly mine.",
 ]
 
-# base (already OP) stats; grow with level
+# base (already OP) stats; grow with level. BUFFED for the swarm: wider/faster cleave so she
+# wades through the horde, more HP/regen so a packed arena can't grind her down.
 var level := 1
-var max_hp := 320.0
-var hp := 320.0
-var base_damage := 24.0
-var attack_range := 95.0
-var base_attack_cd := 0.6
-var regen := 9.0
+var max_hp := 440.0
+var hp := 440.0
+var base_damage := 32.0
+var attack_range := 125.0     # cleave hits EVERYTHING in range — the main swarm-shredder
+var base_attack_cd := 0.45
+var regen := 15.0
 
 # sabotage debuffs (persist into the boss)
 var power_mult := 1.0
