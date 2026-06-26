@@ -97,6 +97,7 @@ var _cam: Camera2D                # shakes the VIEW only, so node coordinates st
 func _ready() -> void:
 	add_to_group("game")
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST   # crisp pixels for the tiled floor in _draw()
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED   # let draw_texture_rect(tile=true) wrap the floor patch
 	_load_floor()
 	rng.randomize()
 	Settings.apply_display()               # re-assert fullscreen/vsync so they survive a restart (R)
@@ -450,24 +451,17 @@ func hitstop(secs := 0.06) -> void:
 	_hitstop = false
 
 # --- arena floor ---
-# Tiled dungeon floor using 0x72 "Dungeon Tileset II" (CC0) — vendored under
-# assets/terrain/0x72/. Tile 0 (floor_1, plain) is the dominant fill; a deterministic
-# per-cell hash sprinkles the lightly-cracked variants in ~1 cell in 6 so the floor reads
-# natural without obvious repetition. The source tiles stay editable: the 16x16 PNGs +
-# atlas_floor-16x16.png open directly in Aseprite, Tiled (16px grid), or Godot's TileSet
-# editor. Drawn in _draw() (re-runs only on resize), so the tile loop is cheap.
-# Source-agnostic: each tile is scaled to FLOOR_TILE_PX, so swapping in any pixel-art floor
-# PNG (16/32/64px) still aligns via nearest-filter upscale.
-const FLOOR_TILE_PX := 64.0   # 16x16 source -> 4x nearest upscale (chunky, matches the buildings)
+# Dungeon floor from 0x72 "Dungeon Tileset II" (CC0, vendored under assets/terrain/0x72/).
+# PERF: the whole floor is ONE tiled draw call — a pre-baked seamless 256x256 patch
+# (floor_patch.png = a 4x4 grid of the 64px tiles, mostly floor_1 with a few cracks, built
+# from the editable 16x16 source tiles) drawn with tile=true. The earlier per-cell loop
+# issued ~350 textured draws/frame with interleaved textures, which broke 2D batching and
+# tanked the framerate on the single-threaded web build. The source 16x16 tiles + the atlas
+# still open in Aseprite / Tiled (16px grid) / Godot's TileSet editor; re-bake floor_patch
+# from them if you change the mix.
 const FLOOR_TINT := Color(0.82, 0.82, 0.9)   # darken + slight cool so the warm brown sits in the moody arena
-const FLOOR_TILE_PATHS := [
-	"res://assets/terrain/0x72/floor_1.png",   # plain (dominant fill)
-	"res://assets/terrain/0x72/floor_2.png",   # hairline crack
-	"res://assets/terrain/0x72/floor_3.png",   # cracks
-	"res://assets/terrain/0x72/floor_6.png",   # cracks
-	"res://assets/terrain/0x72/floor_5.png",   # near-plain speckle
-]
-var _floor_tex: Array[Texture2D] = []
+const FLOOR_PATCH_PATH := "res://assets/terrain/0x72/floor_patch.png"
+var _floor_patch: Texture2D
 
 # Scattered skull decorations ("here and there") — 0x72 skull.png (16x16). Positions are
 # ARENA-RELATIVE fractions so the scatter spreads to any viewport size and stays put across
@@ -486,23 +480,8 @@ const SKULL_SPOTS := [
 var _skull_tex: Texture2D
 
 func _load_floor() -> void:
-	_floor_tex.clear()
-	for p in FLOOR_TILE_PATHS:
-		var tex := load(p) as Texture2D
-		if tex != null:
-			_floor_tex.append(tex)
+	_floor_patch = load(FLOOR_PATCH_PATH) as Texture2D
 	_skull_tex = load("res://assets/terrain/0x72/skull.png") as Texture2D
-
-## Deterministic per-cell tile: tile 0 (plain) dominates; ~1 cell in 6 draws one of the
-## cracked variants (indices 1..n-1), spread evenly by the hash.
-func _floor_pick(col: int, row: int) -> int:
-	var n := _floor_tex.size()
-	if n <= 1:
-		return 0
-	var h: int = absi((col * 73856093) ^ (row * 19349663))
-	if h % 6 != 0:
-		return 0
-	return 1 + (h / 6) % (n - 1)
 
 # --- scenery ---
 func _rebuild_scenery() -> void:
@@ -535,10 +514,10 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2(-48, -48), arena + Vector2(96, 96)), Color(0.10, 0.10, 0.14))
 	var inner := Rect2(Vector2(WALL_MARGIN, WALL_MARGIN),
 		arena - Vector2(WALL_MARGIN * 2.0, WALL_MARGIN * 2.0))
-	if _floor_tex.is_empty():
-		draw_rect(inner, Color(0.16, 0.16, 0.22))   # fallback: flat fill if the tiles failed to load
+	if _floor_patch == null:
+		draw_rect(inner, Color(0.16, 0.16, 0.22))   # fallback: flat fill if the patch failed to load
 	else:
-		_draw_floor(inner)
+		draw_texture_rect(_floor_patch, inner, true, FLOOR_TINT)   # ONE tiled draw call (tile=true)
 	_draw_decor(inner)
 	draw_rect(inner, Color(0.30, 0.29, 0.38), false, 5.0)   # stone-edge border
 
@@ -553,27 +532,3 @@ func _draw_decor(inner: Rect2) -> void:
 		draw_set_transform(pos, s[4], Vector2(s[2] * s[3], s[2]))   # centre, rotate, scale/flip
 		draw_texture(_skull_tex, -half, SKULL_TINT)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)   # reset so the border draws untransformed
-
-## Tile the stone floor across `inner`. Edge cells are cropped (not squashed) via
-## draw_texture_rect_region so the mortar grid stays aligned right up to the wall.
-func _draw_floor(inner: Rect2) -> void:
-	var ts := FLOOR_TILE_PX
-	var x_end := inner.position.x + inner.size.x
-	var y_end := inner.position.y + inner.size.y
-	var row := 0
-	var y := inner.position.y
-	while y < y_end:
-		var th := minf(ts, y_end - y)
-		var col := 0
-		var x := inner.position.x
-		while x < x_end:
-			var tw := minf(ts, x_end - x)
-			var tex := _floor_tex[_floor_pick(col, row)]
-			var sz := tex.get_size()
-			# Crop the source proportionally so partial edge tiles keep the same pixel scale.
-			var src := Rect2(Vector2.ZERO, Vector2(sz.x * (tw / ts), sz.y * (th / ts)))
-			draw_texture_rect_region(tex, Rect2(Vector2(x, y), Vector2(tw, th)), src, FLOOR_TINT)
-			x += ts
-			col += 1
-		y += ts
-		row += 1
